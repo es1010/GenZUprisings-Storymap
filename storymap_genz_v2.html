@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Power Shift · StoryMap v2</title>
+<link rel="stylesheet" href="https://cdn.knightlab.com/libs/storymapjs/latest/css/storymap.css">
+<script src="https://cdn.knightlab.com/libs/storymapjs/latest/js/storymap-min.js"></script>
+<style>
+  :root { --encre: #2b2d42; --papier: #efeeea; --ligne: #d4d2cb; }
+  html, body { height: 100%; margin: 0; background: var(--papier); font-family: "Segoe UI", system-ui, sans-serif; color: var(--encre); }
+  body { display: flex; flex-direction: column; }
+  #barre { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 16px;
+           background: var(--encre); color: #fff; position: relative; z-index: 2000; }
+  #barre .titre { font-weight: 700; font-size: 15px; margin-right: 6px; white-space: nowrap; }
+  #barre .titre i { font-weight: 400; opacity: .75; }
+  #barre button, #barre select, #barre input { font: inherit; font-size: 14px; border-radius: 6px; border: 1px solid #6b6e85;
+           background: #3a3d55; color: #fff; padding: 6px 10px; min-height: 34px; }
+  #barre button { cursor: pointer; }
+  #barre button:hover, #barre select:hover { background: #4a4e69; }
+  #barre select { max-width: 260px; }
+  .recherche { position: relative; flex: 1 1 240px; max-width: 420px; }
+  .recherche input { width: 100%; box-sizing: border-box; }
+  .recherche input::placeholder { color: #c9cad6; }
+  #liste { display: none; position: absolute; top: 100%; left: 0; right: 0; margin: 4px 0 0; padding: 4px 0; list-style: none;
+           max-height: 60vh; overflow-y: auto; background: #fff; color: var(--encre); border-radius: 8px;
+           box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+  #liste.ouvert { display: block; }
+  #liste li { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; font-size: 14px; }
+  #liste li small { color: #6b6b6b; margin-left: auto; white-space: nowrap; }
+  #liste li.sel, #liste li:hover { background: #ecebf3; }
+  #liste li.vide { cursor: default; color: #6b6b6b; }
+  .pastille { flex: 0 0 auto; width: 12px; height: 12px; border-radius: 50%; border: 1px solid #fff; box-shadow: 0 0 0 1px #888; }
+  #mapdiv { flex: 1 1 auto; min-height: 0; width: 100%; }
+
+  /* StoryMapJS : on masque ses marqueurs rouges, remplacés par les ronds de la carte du Day 12 */
+  .vco-mapmarker, .vco-mapmarker-active { display: none !important; }
+  .genz-rond { background: none; border: 0; cursor: pointer; }
+  .genz-rond svg { overflow: visible; transition: transform .2s; }
+  .genz-rond.actif svg { transform: scale(1.35); filter: drop-shadow(0 0 4px rgba(0,0,0,.55)); }
+  .genz-rond.famille svg { filter: drop-shadow(0 0 3px rgba(255,255,255,.9)); }
+  .genz-rond.estompe { opacity: .35; }
+
+  #bulle { position: absolute; z-index: 1500; pointer-events: none; display: none; max-width: 240px; padding: 6px 9px;
+           background: rgba(255,255,255,.96); color: var(--encre); border-radius: 6px; font-size: 12.5px; line-height: 1.35;
+           box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+  #bulle b { font-size: 13px; }
+  .legende { background: rgba(255,255,255,.93); color: var(--encre); padding: 8px 10px; border-radius: 8px; font-size: 11.5px;
+             line-height: 1.3; box-shadow: 0 1px 6px rgba(0,0,0,.2); max-width: 230px; }
+  .legende h4 { margin: 0 0 4px; font-size: 12px; }
+  .legende .grille { display: grid; grid-template-columns: 14px repeat(3, 16px); grid-template-rows: repeat(3, 16px) 14px; gap: 1px; }
+  .legende .grille span { display: block; }
+  .legende .axe-y { grid-row: 1 / 4; writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; text-align: center; }
+  .legende .axe-x { grid-column: 2 / 5; font-size: 10px; }
+  .legende .bloc { display: flex; gap: 10px; align-items: flex-end; }
+  .legende .issues div { display: flex; align-items: center; gap: 5px; margin: 1px 0; }
+  .legende .masquer { float: right; border: 0; background: none; cursor: pointer; font-size: 14px; color: #666; padding: 0 0 0 6px; }
+  .legende.ferme .contenu { display: none; }
+  .familles-cle { margin-top: 6px; }
+  .familles-cle div { display: flex; align-items: center; gap: 6px; }
+  .familles-cle span { display: inline-block; width: 18px; height: 3px; border-radius: 2px; }
+  @media (max-width: 700px) {
+    #barre { padding: 6px 16px; gap: 6px; }
+    #barre .titre { width: 100%; font-size: 14px; }
+    #barre select { flex: 1 1 120px; width: 0; min-width: 0; max-width: none; }
+    .recherche { flex: 1 1 100%; max-width: none; }
+    .legende { max-width: 170px; font-size: 10.5px; }
+  }
+</style>
+</head>
+<body>
+<nav id="barre" aria-label="Navigation de la StoryMap">
+  <span class="titre">Le pouvoir change de mains ? <i>· Power Shift?</i></span>
+  <button id="btn-ensemble" type="button" title="Revenir à la diapositive de titre et à la vue d'ensemble">⌂ Vue d'ensemble</button>
+  <select id="chapitres" aria-label="Aller au chapitre"><option value="">Chapitres…</option></select>
+  <div class="recherche">
+    <input id="cherche" type="search" autocomplete="off" placeholder="Rechercher un mouvement, un pays, une ville…"
+           aria-label="Rechercher un mouvement" aria-controls="liste" aria-expanded="false" role="combobox">
+    <ul id="liste" role="listbox"></ul>
+  </div>
+</nav>
+<div id="mapdiv"></div>
+<div id="bulle"></div>
+<script>
+(function () {
+  "use strict";
+  var MM = window.innerWidth < 700 ? 2.6 : 3.6;   // pixels par millimètre de la carte imprimée (plus petit sur téléphone)
+  var storymap, carte, D, rondsParSlide = {}, coucheLignes = null, slideCourante = -1;
+  var bulle = document.getElementById("bulle");
+  var echap = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var sansAccent = function (s) { return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); };
+  var json = function (u) { return fetch(u).then(function (r) { if (!r.ok) throw new Error(u + " : " + r.status); return r.json(); }); };
+
+  Promise.all([json("storymap_genz_v2.json"), json("genz_v2_donnees.json")]).then(function (res) {
+    D = res[1];
+    var Classe = window.KLStoryMap ? KLStoryMap.StoryMap : VCO.StoryMap;
+    storymap = new Classe("mapdiv", res[0], { language: "fr", map_type: "osm:standard", calculate_zoom: false,
+                                              show_lines: false, show_history_line: false });
+    window.storymap = storymap;
+    window.addEventListener("resize", function () { storymap.updateDisplay(); });
+    var essais = 0, recaler = setInterval(function () {   // la feuille de style arrive parfois après l'initialisation
+      storymap.updateDisplay();
+      var s = document.querySelectorAll(".vco-slide");
+      if (++essais > 40 || (s.length > 1 && s[1].style.left && s[1].style.left !== "0px" && essais > 4)) clearInterval(recaler);
+    }, 250);
+    preparerNavigation();
+    attendreCarte();
+  }).catch(function (e) {
+    document.getElementById("mapdiv").innerHTML = '<p style="padding:16px">Impossible de charger les données (' + echap(e.message) +
+      '). Ouvrez la page via un serveur web (GitHub Pages ou <code>py -m http.server</code>), pas en double-clic.</p>';
+  });
+
+  function attendreCarte() {
+    var m = storymap && storymap._map && storymap._map._map;
+    if (!m || !window.L) { setTimeout(attendreCarte, 150); return; }
+    carte = m;
+    json("pays_bivarie.geojson").then(ajouterAplats).catch(function (e) { console.warn(e); });
+    ajouterRonds();
+    ajouterLegende();
+    setInterval(suivreSlide, 250);
+  }
+
+  // ---------- 1. aplats bivariés -------------------------------------------------------------
+  function ajouterAplats(geo) {
+    geo.features = geo.features.filter(function (f) { return f.geometry && f.geometry.coordinates; });
+    var couche = L.geoJson(geo, {
+      style: function (f) {
+        var c = D.bivar[f.properties.bivar];
+        return { fillColor: c || "#ffffff", fillOpacity: c ? 0.55 : 0.12, color: "#ffffff", weight: 0.6, opacity: 0.7 };
+      },
+      onEachFeature: function (f, lyr) {
+        lyr.on("mouseover", function (e) { lyr.setStyle({ weight: 2, color: "#2b2d42", opacity: 0.9 }); montrerBulle(textePays(f.properties), e); });
+        lyr.on("mousemove", function (e) { placerBulle(e); });
+        lyr.on("mouseout", function () { couche.resetStyle(lyr); cacherBulle(); });
+      }
+    }).addTo(carte);
+    couche.bringToBack();
+  }
+  function textePays(p) {
+    var fmt = function (v, u) { return v == null ? "n. d." : String(v).replace(".", ",") + u; };
+    return "<b>" + echap(p.NAME) + "</b><br>Âge médian : " + fmt(p.age_median, " ans") +
+           "<br>Chômage des 15–24 ans : " + fmt(p.chom_jeunes, " %") +
+           "<br><i style='color:#777'>median age · youth unemployment</i>";
+  }
+
+  // ---------- 2. ronds de la carte du Day 12 --------------------------------------------------
+  function svgRond(m) {
+    var d = m.d_mm * MM, halo = (m.cas_limite ? m.d_mm + 1 : m.d_mm + (m.epoque === "2026" ? 4.6 : 3.0)) * MM;
+    var T = halo + 4, c = T / 2, s = '<svg xmlns="http://www.w3.org/2000/svg" width="' + T + '" height="' + T + '" viewBox="0 0 ' + T + " " + T + '">';
+    s += '<circle cx="' + c + '" cy="' + c + '" r="' + halo / 2 + '" fill="#ffffff" fill-opacity="0.9"/>';
+    if (m.anneau) {
+      var w = m.anneau_mm * MM, dash = "";
+      if (m.anneau === "dot") dash = ' stroke-dasharray="0.1 ' + (w * 2.2) + '" stroke-linecap="round"';
+      if (m.anneau === "dash") dash = ' stroke-dasharray="' + (w * 5) + " " + (w * 2.5) + '"';
+      s += '<circle cx="' + c + '" cy="' + c + '" r="' + (d + 1.9 * MM) / 2 + '" fill="none" stroke="' + D.encre + '" stroke-width="' + w + '"' + dash + "/>";
+      if (m.anneau === "double")
+        s += '<circle cx="' + c + '" cy="' + c + '" r="' + (d + 3.5 * MM) / 2 + '" fill="none" stroke="' + D.encre + '" stroke-width="' + w + '"/>';
+    }
+    s += '<circle cx="' + c + '" cy="' + c + '" r="' + d / 2 + '" fill="' + m.remplissage + '" stroke="' +
+         (m.cas_limite ? "#6b6b6b" : "#ffffff") + '" stroke-width="' + 0.15 * MM + '"/>';
+    var p = m.picto && D.pictos[m.picto];
+    if (p) {
+      var t = d * 0.62;
+      s += '<svg x="' + (c - t / 2) + '" y="' + (c - t / 2) + '" width="' + t + '" height="' + t + '" viewBox="' + p.viewBox +
+           '" style="color:' + m.picto_couleur + '">' + p.corps + "</svg>";
+    }
+    return { html: s + "</svg>", taille: T };
+  }
+  function ajouterRonds() {
+    // les petits ronds au-dessus des gros, comme sur la carte
+    D.mouvements.slice().sort(function (a, b) { return b.d_mm - a.d_mm; }).forEach(function (m, i) {
+      var r = svgRond(m);
+      var mk = L.marker([m.lat, m.lon], {
+        icon: L.divIcon({ className: "genz-rond", html: r.html, iconSize: [r.taille, r.taille], iconAnchor: [r.taille / 2, r.taille / 2] }),
+        zIndexOffset: 1000 + i * 10, riseOnHover: true, title: ""
+      }).addTo(carte);
+      mk.on("click", function () { allerA(m.slide); });
+      mk.on("mouseover", function (e) { montrerBulle(texteMouvement(m), e); });
+      mk.on("mousemove", function (e) { placerBulle(e); });
+      mk.on("mouseout", cacherBulle);
+      rondsParSlide[m.slide] = { marker: mk, m: m, z: 1000 + i * 10 };
+    });
+  }
+  function texteMouvement(m) {
+    return "<b>" + echap(m.nom) + "</b><br>" + echap(m.pays) + " · " + echap(m.annee) + "<br>" +
+           (m.cas_limite ? "cas limite · " : "") + echap(m.issue) + " · " + m.duree + " j" +
+           "<br><i style='color:#777'>cliquer pour ouvrir · click to open</i>";
+  }
+  function classeRond(slide, nom, oui) {
+    var r = rondsParSlide[slide], el = r && r.marker._icon;
+    if (el) { if (oui) L.DomUtil.addClass(el, nom); else L.DomUtil.removeClass(el, nom); }
+  }
+
+  // ---------- 3. lignes des symboles qui voyagent --------------------------------------------
+  function arc(a, b) {   // courbe douce entre deux points (Bézier quadratique en lat/lon)
+    var mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = b[1] - a[1], dy = b[0] - a[0];
+    var c = [mx + dx * 0.18, my - dy * 0.18], pts = [];
+    for (var t = 0; t <= 1.0001; t += 0.05)
+      pts.push([(1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * c[0] + t * t * b[0],
+                (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * c[1] + t * t * b[1]]);
+    return pts;
+  }
+  function montrerFamille(f) {
+    if (coucheLignes) { carte.removeLayer(coucheLignes); coucheLignes = null; }
+    Object.keys(rondsParSlide).forEach(function (k) { classeRond(k, "famille", false); classeRond(k, "estompe", false); });
+    if (!f) return;
+    coucheLignes = L.layerGroup(f.segments.map(function (s) {
+      return L.polyline(arc(s[0], s[1]), { color: f.couleur, weight: 3.5, opacity: 0.9, lineCap: "round", clickable: false });
+    })).addTo(carte);
+    Object.keys(rondsParSlide).forEach(function (k) {
+      var dedans = f.slides_mouvements.indexOf(+k) >= 0;
+      classeRond(k, dedans ? "famille" : "estompe", true);
+    });
+  }
+
+  // ---------- suivi de la diapositive courante -----------------------------------------------
+  function suivreSlide() {
+    var n = storymap.current_slide;
+    if (n === slideCourante) return;
+    if (rondsParSlide[slideCourante]) { classeRond(slideCourante, "actif", false); rondsParSlide[slideCourante].marker.setZIndexOffset(rondsParSlide[slideCourante].z); }
+    slideCourante = n;
+    if (rondsParSlide[n]) { classeRond(n, "actif", true); rondsParSlide[n].marker.setZIndexOffset(5000); }
+    var fam = null;
+    D.familles.forEach(function (f) { if (f.slide === n) fam = f; });
+    montrerFamille(fam);
+    var sel = document.getElementById("chapitres"), v = "";
+    D.chapitres.forEach(function (c) { if (c.slide <= n) v = String(c.slide); });
+    sel.value = v;
+  }
+  function allerA(n) { storymap.goTo(+n); setTimeout(suivreSlide, 50); }
+
+  // ---------- bulle --------------------------------------------------------------------------
+  function montrerBulle(html, e) { bulle.innerHTML = html; bulle.style.display = "block"; placerBulle(e); }
+  function placerBulle(e) {
+    var x = e.originalEvent.clientX + 14, y = e.originalEvent.clientY + 14;
+    var w = bulle.offsetWidth, h = bulle.offsetHeight;
+    if (x + w > window.innerWidth - 8) x = e.originalEvent.clientX - w - 14;
+    if (y + h > window.innerHeight - 8) y = e.originalEvent.clientY - h - 14;
+    bulle.style.left = x + "px"; bulle.style.top = y + "px";
+  }
+  function cacherBulle() { bulle.style.display = "none"; }
+
+  // ---------- légende ------------------------------------------------------------------------
+  function ajouterLegende() {
+    var ctl = L.control({ position: "bottomleft" });
+    ctl.onAdd = function () {
+      var div = L.DomUtil.create("div", "legende");
+      var g = '<div class="grille"><span class="axe-y">plus jeune ↑</span>';
+      for (var y = 3; y >= 1; y--) for (var x = 1; x <= 3; x++)
+        g += '<span style="background:' + D.bivar[x + "-" + y] + ';grid-column:' + (x + 1) + ';grid-row:' + (4 - y) + '"></span>';
+      g += '<span class="axe-x">chômage 15–24 ans →</span></div>';
+      var iss = '<div class="issues">';
+      Object.keys(D.issues).forEach(function (k) {
+        iss += '<div><span class="pastille" style="background:' + D.coul_issue[k] + '"></span>' + echap(D.issues[k][0]) + "</div>";
+      });
+      iss += '<div><span class="pastille" style="background:' + D.coul_issue.cas_limite + '"></span>cas limite</div></div>';
+      var fam = '<div class="familles-cle">';
+      D.familles.forEach(function (f) { fam += '<div><span style="background:' + f.couleur + '"></span>' + echap(f.fr) + "</div>"; });
+      div.innerHTML = '<button class="masquer" type="button" title="Masquer / afficher la légende" aria-label="Masquer la légende">–</button>' +
+        "<h4>Légende · <i>Key</i></h4><div class='contenu'><div class='bloc'>" + g + iss + "</div>" +
+        "<div style='margin-top:5px;color:#555'>taille = durée · anneau = époque</div>" + fam + "</div>";
+      L.DomEvent.disableClickPropagation(div);
+      var b = div.querySelector(".masquer");
+      b.addEventListener("click", function () { var f = div.classList.toggle("ferme"); b.textContent = f ? "+" : "–"; });
+      if (window.innerWidth < 700) { div.classList.add("ferme"); b.textContent = "+"; }
+      return div;
+    };
+    ctl.addTo(carte);
+  }
+
+  // ---------- barre de navigation ------------------------------------------------------------
+  function preparerNavigation() {
+    document.getElementById("btn-ensemble").addEventListener("click", function () { allerA(0); });
+    var sel = document.getElementById("chapitres");
+    D.chapitres.forEach(function (c) {
+      var o = document.createElement("option"); o.value = c.slide; o.textContent = c.label; sel.appendChild(o);
+    });
+    sel.addEventListener("change", function () { if (sel.value !== "") allerA(sel.value); });
+
+    var inp = document.getElementById("cherche"), ul = document.getElementById("liste"), choix = -1, items = [];
+    var tous = D.mouvements.slice().sort(function (a, b) { return a.slide - b.slide; });
+    function afficher() {
+      var q = sansAccent(inp.value.trim());
+      items = tous.filter(function (m) {
+        return !q || sansAccent([m.nom, m.nom_en, m.pays, m.ville, m.annee, m.issue].join(" ")).indexOf(q) >= 0;
+      });
+      choix = items.length ? 0 : -1;
+      ul.innerHTML = items.length ? items.map(function (m, i) {
+        return '<li role="option" data-i="' + i + '"' + (i === choix ? ' class="sel"' : "") + '><span class="pastille" style="background:' +
+          m.remplissage + '"></span>' + echap(m.nom) + "<small>" + echap(m.pays) + " · " + m.annee + (m.cas_limite ? " · cas limite" : "") + "</small></li>";
+      }).join("") : '<li class="vide">Aucun mouvement trouvé</li>';
+      ul.classList.add("ouvert"); inp.setAttribute("aria-expanded", "true");
+    }
+    function fermer() { ul.classList.remove("ouvert"); inp.setAttribute("aria-expanded", "false"); }
+    function valider(i) { if (items[i]) { allerA(items[i].slide); inp.value = items[i].nom; fermer(); inp.blur(); } }
+    function surligner() {
+      [].forEach.call(ul.children, function (li, i) { li.classList.toggle("sel", i === choix); });
+      if (ul.children[choix]) ul.children[choix].scrollIntoView({ block: "nearest" });
+    }
+    inp.addEventListener("focus", function () { inp.select(); afficher(); });
+    inp.addEventListener("input", afficher);
+    inp.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown") { choix = Math.min(items.length - 1, choix + 1); surligner(); e.preventDefault(); }
+      else if (e.key === "ArrowUp") { choix = Math.max(0, choix - 1); surligner(); e.preventDefault(); }
+      else if (e.key === "Enter") { valider(choix); e.preventDefault(); }
+      else if (e.key === "Escape") { fermer(); inp.blur(); }
+    });
+    ul.addEventListener("mousedown", function (e) {
+      var li = e.target.closest("li[data-i]"); if (li) { e.preventDefault(); valider(+li.dataset.i); }
+    });
+    inp.addEventListener("blur", function () { setTimeout(fermer, 120); });
+  }
+})();
+</script>
+</body>
+</html>

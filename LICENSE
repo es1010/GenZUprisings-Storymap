@@ -3,7 +3,8 @@ MIT License
 Copyright (c) 2026 Estelle Sérèmes
 
 This license applies to the source code in this repository only
-(genere_storymap.py, genere_zip_import.py, storymap_genz.html).
+(genere_storymap.py, genere_storymap_v2.py, genere_zip_import.py,
+storymap_genz.html, storymap_genz_v2.html).
 Maps, charts, texts and data are licensed under CC BY-SA 4.0: see README.md.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
