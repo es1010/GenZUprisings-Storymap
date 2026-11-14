@@ -8,7 +8,7 @@ StoryMap (StoryMapJS, Knight Lab) du #30DayMapChallenge 2026, jour 27 « New too
 
 ## Voir la StoryMap · *View it*
 
-Ouvrir `https://<utilisateur>.github.io/<depot>/` : `index.html` ouvre l'**intro globe**, puis « Entrer » mène à la StoryMap.
+Ouvrir <https://es1010.github.io/GenZUprisings-Storymap/> : `index.html` ouvre l'**intro globe**, puis « Entrer » mène à la StoryMap.
 
 - **StoryMap** `storymap_genz.html` (version actuelle) : aplats bivariés âge médian × chômage des 15–24 ans, ronds de la carte du Day 12 (issue, durée, époque, picto) sans chevauchement, lignes fléchées des symboles qui voyagent, frise et waffle interactifs, visionneuse d'images, barre de navigation (chapitres, recherche). `storymap_genz.html?diapo=N` ouvre directement la diapositive N. *Current version.*
 - **Intro globe** `globe_intro.html` : globe qui tourne vers chaque mouvement, l'un après l'autre, avec une onde à son apparition ; « Passer l'intro » mène directement à la StoryMap. *Spinning-globe intro.*
