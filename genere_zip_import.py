@@ -8,13 +8,13 @@ Format repris du code source de StoryMapJS (storymap/api.py, fonctions storymap_
   - published.json et index.html sont facultatifs ;
   - les images vont dans _images/. Les media.url de la forme « …/_images/<fichier> » sont réécrites
     par le serveur vers son stockage, à condition que le fichier soit présent dans le zip.
-Lit storymap_genz.json et les PNG de ce dossier sans les modifier, et n'écrit que le zip.
+Lit storymap_genz_v1.json (v1) et les PNG de ce dossier sans les modifier, et n'écrit que le zip.
 """
 import datetime as dt, json, zipfile
 from pathlib import Path
 
 ICI = Path(__file__).resolve().parent
-SRC = ICI / "storymap_genz.json"
+SRC = ICI / "storymap_genz_v1.json"
 ZIP = ICI / "storymap_genz_import.zip"
 IMAGES = ["frise_genz_2014_2026.png", "taux_reussite_epoques.png", "carte_power_genz_day12.png"]
 TITRE = "Power Shift Gen Z 2014-2026"

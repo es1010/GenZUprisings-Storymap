@@ -5,7 +5,7 @@ Day 27 « New tool » : StoryMapJS (Knight Lab) à partir de la carte Gen Z du D
 Lit (lecture seule) : ../power/mouvements_genz.csv, ../power/genz_power.gpkg (âge médian × chômage,
 familles de symboles), ../power/photos/credits_commons.json, ../power/export/power_v2.png.
 Écrit UNIQUEMENT dans ce dossier « new tool » :
-  storymap_genz.json, storymap_genz_diapositives.csv, storymap_genz.html,
+  storymap_genz_v1.json, storymap_genz_diapositives.csv, storymap_genz_v1.html (v1, renommée le 14/11/2026),
   frise_genz_2014_2026.png, taux_reussite_epoques.png, carte_power_genz_day12.png,
   photos_commons_cache.json (cache des recherches Wikimedia, à relire/corriger à la main).
 
@@ -23,9 +23,9 @@ CREDITS_LOCAUX = POWER / "photos" / "credits_commons.json"
 CARTE_SRC = POWER / "export" / "power_v2.png"
 
 CACHE = ICI / "photos_commons_cache.json"
-OUT_JSON = ICI / "storymap_genz.json"
+OUT_JSON = ICI / "storymap_genz_v1.json"
 OUT_CSV = ICI / "storymap_genz_diapositives.csv"
-OUT_HTML = ICI / "storymap_genz.html"
+OUT_HTML = ICI / "storymap_genz_v1.html"
 OUT_FRISE = ICI / "frise_genz_2014_2026.png"
 OUT_TAUX = ICI / "taux_reussite_epoques.png"
 OUT_CARTE = ICI / "carte_power_genz_day12.png"
@@ -589,7 +589,7 @@ def ecrire(S):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Power Shift · StoryMap</title>
+<title>Power Shift · StoryMap v1</title>
 <link rel="stylesheet" href="https://cdn.knightlab.com/libs/storymapjs/latest/css/storymap.css">
 <script src="https://cdn.knightlab.com/libs/storymapjs/latest/js/storymap-min.js"></script>
 <style>
@@ -608,7 +608,7 @@ def ecrire(S):
     window.addEventListener("resize", function () {{ storymap.updateDisplay(); }});
     // la feuille de style arrive parfois après l'initialisation : on recalcule la mise en page
     [300, 1200, 3000].forEach(function (t) {{ setTimeout(function () {{ storymap.updateDisplay(); }}, t); }}); }}
-  fetch("storymap_genz.json").then(function (r) {{ if (!r.ok) throw r; return r.json(); }})
+  fetch("storymap_genz_v1.json").then(function (r) {{ if (!r.ok) throw r; return r.json(); }})
     .then(lancer)
     .catch(function () {{ lancer(JSON.parse(document.getElementById("donnees").textContent)); }});
 </script>

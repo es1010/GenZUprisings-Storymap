@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Le pouvoir change de mains ? · Power Shift? · Intro</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<style>
+  :root { --encre: #2b2d42; --papier: #efeeea; --nuit: #1f2133; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--nuit); color: #fff; font-family: "Segoe UI", system-ui, sans-serif; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  canvas.saisi { cursor: grabbing; }
+  .titre { position: absolute; top: 14px; left: 16px; right: 180px; pointer-events: none; }
+  .titre h1 { margin: 0; font-size: clamp(19px, 3.2vw, 32px); line-height: 1.15; }
+  .titre h1 i { font-weight: 400; opacity: .8; }
+  .titre p { margin: 4px 0 0; font-size: clamp(12px, 1.4vw, 15px); opacity: .85; max-width: 560px; }
+  #passer { position: absolute; top: 16px; right: 16px; color: #fff; font-size: 14px; text-decoration: none; border: 1px solid rgba(255,255,255,.6);
+            border-radius: 999px; padding: 7px 14px; background: rgba(31,33,51,.5); }
+  #passer:hover { background: rgba(255,255,255,.15); }
+  /* bandeau du mouvement en cours : année, nom, navigation */
+  .recit { position: absolute; left: 16px; bottom: 74px; max-width: min(520px, calc(100% - 32px)); }
+  .recit .an { font-size: clamp(34px, 6vw, 60px); font-weight: 700; line-height: 1; letter-spacing: -1px; }
+  .recit .nom { font-size: clamp(15px, 2vw, 21px); font-weight: 600; margin-top: 4px; line-height: 1.2; min-height: 1.2em; }
+  .recit .nom .pastille { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #fff; margin-right: 6px; vertical-align: 1px; }
+  .recit .lieu { font-size: 13.5px; opacity: .85; margin-top: 2px; min-height: 1.2em; }
+  .recit .n { font-size: 12.5px; opacity: .75; margin-top: 2px; }
+  .nav { display: flex; gap: 8px; margin-top: 8px; }
+  .nav button { font: inherit; font-size: 16px; width: 40px; height: 36px; border-radius: 8px; border: 1px solid rgba(255,255,255,.55);
+                background: rgba(31,33,51,.55); color: #fff; cursor: pointer; }
+  .nav button:hover { background: rgba(255,255,255,.15); }
+  .nav button:disabled { opacity: .35; cursor: default; }
+  /* légende */
+  .legende { position: absolute; right: 16px; bottom: 74px; background: rgba(31,33,51,.72); border: 1px solid rgba(255,255,255,.15);
+             padding: 9px 11px; border-radius: 10px; font-size: 12px; display: grid; gap: 8px; max-width: 250px; }
+  .legende h5 { margin: 0 0 3px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; opacity: .75; }
+  .legende .ligne { display: flex; align-items: center; gap: 6px; margin: 1px 0; white-space: nowrap; }
+  .legende .pastille { width: 11px; height: 11px; border-radius: 50%; border: 1px solid #fff; display: inline-block; }
+  .legende .biv-bloc { display: flex; gap: 8px; align-items: center; }
+  .legende .biv { display: grid; grid-template-columns: repeat(3, 15px); grid-template-rows: repeat(3, 15px); gap: 1px; }
+  .legende .axes { font-size: 11px; line-height: 1.3; opacity: .9; }
+  .actions { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; gap: 10px; }
+  #entrer { font: inherit; font-size: 16px; font-weight: 600; border-radius: 999px; padding: 9px 24px; text-decoration: none; white-space: nowrap;
+            background: #ffd23f; color: var(--encre); border: 2px solid #ffd23f; }
+  .credit { position: absolute; left: 16px; right: 16px; bottom: 6px; font-size: 10.5px; opacity: .7; text-align: center; }
+  .credit a { color: #fff; }
+  #bulle { position: fixed; display: none; pointer-events: none; background: rgba(255,255,255,.97); color: var(--encre); border-radius: 6px;
+           padding: 6px 9px; font-size: 12.5px; max-width: 240px; box-shadow: 0 2px 10px rgba(0,0,0,.35); line-height: 1.35; z-index: 5; }
+  @media (max-width: 760px) {
+    .titre { right: 16px; top: 54px; }
+    .legende { display: none; }
+    .recit { bottom: 98px; }
+    .actions { bottom: 46px; }
+    .credit { font-size: 9.5px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="globe" aria-label="Globe des mouvements de la génération Z, 2014–2026"></canvas>
+<div class="titre">
+  <h1>Le pouvoir change de mains ? <i>· Power Shift?</i></h1>
+  <p>38 mouvements de la génération Z et 12 cas limites, l'un après l'autre · <i>Gen Z uprisings, one after another</i></p>
+</div>
+<a id="passer" href="storymap_genz.html">Passer l'intro · Skip ⏭</a>
+<div class="recit" aria-live="polite">
+  <div class="an" id="an">2014</div>
+  <div class="nom" id="nom"></div>
+  <div class="lieu" id="lieu"></div>
+  <div class="n" id="nb"></div>
+  <div class="nav">
+    <button id="prec" type="button" title="Mouvement précédent · previous" aria-label="Mouvement précédent">‹</button>
+    <button id="lecture" type="button" title="Pause / lecture" aria-label="Pause">❚❚</button>
+    <button id="suiv" type="button" title="Mouvement suivant · next" aria-label="Mouvement suivant">›</button>
+    <button id="rejouer" type="button" title="Rejouer depuis 2014 · replay" aria-label="Rejouer">↻</button>
+  </div>
+</div>
+<div class="legende" id="legende"></div>
+<div class="actions"><a id="entrer" href="storymap_genz.html">Entrer · Enter →</a></div>
+<div class="credit">Glisser pour tourner, molette ou pincement pour zoomer, cliquer sur un rond pour ouvrir son histoire ·
+  Globe d'après <a href="https://vizhub.com/curran/cv-zoomable-globe-with-cities" target="_blank" rel="noopener">Curran Kelleher</a> (licence MIT) ·
+  Pays : Natural Earth · Données et carte : Estelle Sérèmes, CC BY-SA 4.0</div>
+<div id="bulle"></div>
+<script>
+(function () {
+  "use strict";
+  var canvas = document.getElementById("globe"), ctx = canvas.getContext("2d"), bulle = document.getElementById("bulle");
+  var D, pays, ordre, W, H, dpr, rayon0, k = 1;
+  var rot = [-10, -20, 0], rotDepart = null, rotCible = null, tRot = 0;      // rotation animée vers chaque mouvement
+  var idx = -1, tEtape = 0, lecture = true, apparu = {};                      // index du mouvement affiché, heure d'apparition
+  var PAS = 3200, DUREE_ROT = 1300, DUREE_ONDE = 2200;                         // ms : un mouvement toutes les 3,2 s
+  var proj = d3.geoOrthographic().clipAngle(90).precision(0.5), chemin = d3.geoPath(proj, ctx), graticule = d3.geoGraticule10();
+  var ANNEAU = { precurseurs: "dot", vague1: "dash", vague2: "solid", "2026": "double" };
+
+  Promise.all([fetch("genz_v2_donnees.json", { cache: "no-cache" }).then(function (r) { return r.json(); }),
+               fetch("pays_bivarie.geojson").then(function (r) { return r.json(); })]).then(function (res) {
+    D = res[0]; pays = rembobiner(res[1]);
+    ordre = D.mouvements.slice().sort(function (a, b) { return a.debut.localeCompare(b.debut); });
+    legende(); taille(); window.addEventListener("resize", taille);
+    interactions();
+    allerA(0);
+    d3.timer(image);
+  });
+
+  // GeoJSON RFC 7946 (anneaux anti-horaires) -> convention de D3 (horaires), sinon D3 remplit tout le globe
+  function rembobiner(geo) {
+    geo.features = geo.features.filter(function (f) { return f.geometry && f.geometry.coordinates; });
+    geo.features.forEach(function (f) {
+      var g = f.geometry, polys = g.type === "Polygon" ? [g.coordinates] : g.coordinates;
+      polys.forEach(function (p, i) {
+        if (d3.geoArea({ type: "Polygon", coordinates: p }) > 2 * Math.PI) polys[i] = p.map(function (r) { return r.slice().reverse(); });
+      });
+      if (g.type === "Polygon") g.coordinates = polys[0];
+    });
+    return geo;
+  }
+
+  function anneauSvg(style) {
+    var dash = style === "dot" ? ' stroke-dasharray="0.1 2.6" stroke-linecap="round"' : style === "dash" ? ' stroke-dasharray="4 2.2"' : "";
+    var s = '<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="4.6" fill="#bdb9ad"/>' +
+            '<circle cx="10" cy="10" r="6.8" fill="none" stroke="#fff" stroke-width="' + (style === "solid" ? 1.6 : 1.3) + '"' + dash + "/>";
+    if (style === "double") s += '<circle cx="10" cy="10" r="8.9" fill="none" stroke="#fff" stroke-width="1.1"/>';
+    return s + "</svg>";
+  }
+  function legende() {
+    var h = "<div><h5>Issue · <i>outcome</i></h5>";
+    Object.keys(D.issues).forEach(function (c) {
+      h += '<div class="ligne"><span class="pastille" style="background:' + D.coul_issue[c] + '"></span>' + D.issues[c][0] + " · <i>" + D.issues[c][1] + "</i></div>";
+    });
+    h += '<div class="ligne"><span class="pastille" style="background:#bdbdbd"></span>cas limite · <i>borderline</i></div></div>';
+    h += "<div><h5>Anneau = époque · <i>period</i></h5>";
+    D.epoques.forEach(function (e) { h += '<div class="ligne">' + anneauSvg(ANNEAU[e.code]) + e.annees + " · " + e.fr + "</div>"; });
+    h += '<div class="ligne" style="opacity:.8">taille du rond = durée · <i>size = duration</i></div></div>';
+    h += '<div><h5>Pays : âge × chômage · <i>countries</i></h5><div class="biv-bloc"><div class="biv">';
+    for (var y = 3; y >= 1; y--) for (var x = 1; x <= 3; x++) h += '<span style="background:' + D.bivar[x + "-" + y] + '"></span>';
+    h += '</div><div class="axes">↑ population plus jeune<br><i>younger</i><br>→ chômage 15–24 ans<br><i>youth unemployment</i></div></div></div>';
+    document.getElementById("legende").innerHTML = h;
+  }
+  function taille() {
+    dpr = window.devicePixelRatio || 1; W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    rayon0 = Math.min(W * 0.46, H * (W < 760 ? 0.36 : 0.42));
+  }
+
+  // ---------- déroulé mouvement par mouvement ----------
+  function cible(m) { return [-m.lon, Math.max(-35, Math.min(35, -m.lat * 0.8)), 0]; }
+  function allerA(i) {
+    idx = Math.max(0, Math.min(ordre.length - 1, i));
+    var m = ordre[idx];
+    rotDepart = rot.slice(); rotCible = cible(m);
+    var d = rotCible[0] - rotDepart[0]; d = ((d + 540) % 360) - 180; rotCible[0] = rotDepart[0] + d;   // chemin le plus court
+    tRot = tEtape = performance.now();
+    if (!(m.slide in apparu)) apparu[m.slide] = tEtape + DUREE_ROT * 0.6;
+    var n = ordre.slice(0, idx + 1).filter(function (x) { return !x.cas_limite; }).length;
+    document.getElementById("an").textContent = m.debut.slice(0, 4);
+    document.getElementById("nom").innerHTML = '<span class="pastille" style="background:' + m.remplissage + '"></span>' +
+      echap(m.nom) + (m.cas_limite ? ' <span style="opacity:.7;font-weight:400">(cas limite)</span>' : "");
+    document.getElementById("lieu").textContent = m.pays + " · " + m.periode + " · " + m.issue;
+    document.getElementById("nb").textContent = n + (n > 1 ? " mouvements" : " mouvement") + " · " + (idx + 1) + "/" + ordre.length;
+    document.getElementById("prec").disabled = idx === 0;
+    document.getElementById("suiv").disabled = idx === ordre.length - 1;
+  }
+  function echap(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function basculerLecture(oui) {
+    lecture = oui; var b = document.getElementById("lecture");
+    b.textContent = oui ? "❚❚" : "▶"; b.setAttribute("aria-label", oui ? "Pause" : "Lecture");
+    if (oui) tEtape = performance.now();
+  }
+
+  function interactions() {
+    var sel = d3.select(canvas);
+    sel.call(d3.drag()
+      .filter(function (e) { return !e.touches || e.touches.length === 1; })
+      .on("start", function () { canvas.classList.add("saisi"); rotCible = null; basculerLecture(false); })
+      .on("drag", function (e) {
+        var s = 0.25 / k; rot[0] += e.dx * s; rot[1] = Math.max(-80, Math.min(80, rot[1] - e.dy * s));
+      })
+      .on("end", function () { canvas.classList.remove("saisi"); }));
+    sel.call(d3.zoom().scaleExtent([0.7, 6])
+      .filter(function (e) { return e.type === "wheel" || (e.touches && e.touches.length === 2) || e.type === "dblclick"; })
+      .on("zoom", function (e) { k = e.transform.k; }));
+    sel.on("mousemove", function (e) {
+      var m = trouver(e.clientX, e.clientY);
+      canvas.style.cursor = m ? "pointer" : "";
+      if (!m) { bulle.style.display = "none"; return; }
+      bulle.innerHTML = "<b>" + echap(m.nom) + "</b><br>" + echap(m.pays) + " · " + echap(m.periode) + "<br>" + (m.cas_limite ? "cas limite · " : "") + echap(m.issue);
+      bulle.style.display = "block";
+      bulle.style.left = Math.min(e.clientX + 14, W - bulle.offsetWidth - 8) + "px";
+      bulle.style.top = Math.min(e.clientY + 14, H - bulle.offsetHeight - 8) + "px";
+    }).on("mouseleave", function () { bulle.style.display = "none"; })
+      .on("click", function (e) {
+        var m = trouver(e.clientX, e.clientY);
+        if (m) window.location.href = "storymap_genz.html?diapo=" + m.slide;
+      });
+    document.getElementById("prec").addEventListener("click", function () { basculerLecture(false); allerA(idx - 1); });
+    document.getElementById("suiv").addEventListener("click", function () { basculerLecture(false); allerA(idx + 1); });
+    document.getElementById("lecture").addEventListener("click", function () {
+      if (!lecture && idx === ordre.length - 1) { apparu = {}; allerA(0); }
+      basculerLecture(!lecture);
+    });
+    document.getElementById("rejouer").addEventListener("click", function () { apparu = {}; allerA(0); basculerLecture(true); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowLeft") { basculerLecture(false); allerA(idx - 1); }
+      else if (e.key === "ArrowRight") { basculerLecture(false); allerA(idx + 1); }
+      else if (e.key === " ") { e.preventDefault(); basculerLecture(!lecture); }
+    });
+  }
+
+  var visibles = [];
+  function trouver(x, y) {
+    var best = null, dmin = Infinity;
+    visibles.forEach(function (v) { var d = Math.hypot(v.x - x, v.y - y); if (d < v.r + 4 && d < dmin) { dmin = d; best = v.m; } });
+    return best;
+  }
+
+  function rond(m, p, K, echelle) {
+    var r = m.d_mm * K / 2 * echelle, halo = r + (m.cas_limite ? 1 : 2.4) * K;
+    ctx.beginPath(); ctx.arc(p[0], p[1], halo, 0, 2 * Math.PI); ctx.fillStyle = "rgba(255,255,255,.9)"; ctx.fill();
+    if (m.anneau) {
+      ctx.beginPath(); ctx.arc(p[0], p[1], r + 0.95 * K, 0, 2 * Math.PI);
+      ctx.setLineDash(m.anneau === "dot" ? [0.5, 2.2] : m.anneau === "dash" ? [3, 1.8] : []);
+      ctx.lineCap = m.anneau === "dot" ? "round" : "butt";
+      ctx.strokeStyle = D.encre; ctx.lineWidth = m.anneau === "double" ? 0.8 : 1.1; ctx.stroke();
+      if (m.anneau === "double") { ctx.beginPath(); ctx.arc(p[0], p[1], r + 1.75 * K, 0, 2 * Math.PI); ctx.stroke(); }
+      ctx.setLineDash([]);
+    }
+    ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 2 * Math.PI); ctx.fillStyle = m.remplissage; ctx.fill();
+    ctx.strokeStyle = m.cas_limite ? "#6b6b6b" : "#fff"; ctx.lineWidth = 0.8; ctx.stroke();
+    return halo;
+  }
+
+  function image() {
+    var t = performance.now();   // horloge réelle : l'animation reste juste même si le navigateur saute des images
+    if (lecture && t - tEtape > PAS) { if (idx < ordre.length - 1) allerA(idx + 1); else basculerLecture(false); }
+    if (rotCible) {               // rotation douce vers le mouvement en cours
+      var a = Math.min(1, (t - tRot) / DUREE_ROT), e = d3.easeCubicInOut(a);
+      rot = [rotDepart[0] + (rotCible[0] - rotDepart[0]) * e, rotDepart[1] + (rotCible[1] - rotDepart[1]) * e, 0];
+      if (a >= 1) rotCible = null;
+    }
+    proj.translate([W / 2, H * 0.5]).scale(rayon0 * k).rotate(rot);
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.beginPath(); chemin({ type: "Sphere" }); ctx.fillStyle = "#cfdde6"; ctx.fill();
+    ctx.beginPath(); chemin(graticule); ctx.strokeStyle = "rgba(43,45,66,.12)"; ctx.lineWidth = 0.6; ctx.stroke();
+    pays.features.forEach(function (f) {      // tous les pays : aplat bivarié, ou fond neutre, toujours avec contour
+      ctx.beginPath(); chemin(f);
+      ctx.fillStyle = D.bivar[f.properties.bivar] || "#f1efe9"; ctx.fill();
+      ctx.strokeStyle = "rgba(55,55,60,.55)"; ctx.lineWidth = 0.55; ctx.stroke();
+    });
+    ctx.beginPath(); chemin({ type: "Sphere" }); ctx.strokeStyle = "rgba(255,255,255,.6)"; ctx.lineWidth = 1.2; ctx.stroke();
+
+    var centre = [-rot[0], -rot[1]], K = 1.55 * Math.sqrt(k);
+    visibles = [];
+    var montres = ordre.slice(0, idx + 1).sort(function (a, b) { return b.d_mm - a.d_mm; });
+    montres.forEach(function (m) {
+      if (d3.geoDistance([m.lon, m.lat], centre) > Math.PI / 2 - 0.02) return;
+      var p = proj([m.lon, m.lat]), t0 = apparu[m.slide] || 0, age = (t - t0) / 600;
+      if (age < 0) return;
+      var halo = rond(m, p, K, Math.min(1, 0.3 + 0.7 * age));
+      visibles.push({ m: m, x: p[0], y: p[1], r: halo });
+    });
+    // onde qui se propage depuis le mouvement qui apparaît, et repère du mouvement en cours
+    var m = ordre[idx];
+    if (m && d3.geoDistance([m.lon, m.lat], centre) < Math.PI / 2 - 0.02) {
+      var p = proj([m.lon, m.lat]), dt = t - (apparu[m.slide] || t);
+      if (dt > 0 && dt < DUREE_ONDE) {
+        for (var j = 0; j < 3; j++) {
+          var a2 = (dt - j * 260) / (DUREE_ONDE - 520);
+          if (a2 <= 0 || a2 >= 1) continue;
+          ctx.beginPath(); ctx.arc(p[0], p[1], 6 + a2 * rayon0 * 0.45, 0, 2 * Math.PI);
+          ctx.strokeStyle = "rgba(255,255,255," + (0.85 * (1 - a2)).toFixed(3) + ")"; ctx.lineWidth = 2.2 * (1 - a2) + 0.6; ctx.stroke();
+        }
+      }
+      ctx.beginPath(); ctx.arc(p[0], p[1], m.d_mm * K / 2 + 3.4 * K, 0, 2 * Math.PI);
+      ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineWidth = 2; ctx.stroke();
+    } else if (m) {                // mouvement caché derrière le globe : flèche au bord, dans sa direction
+      var c = [W / 2, H * 0.5], q = proj.invert ? null : null;
+      var dir = d3.geoInterpolate(centre, [m.lon, m.lat])(0.12), pe = proj(dir);
+      if (pe) {
+        var ang = Math.atan2(pe[1] - c[1], pe[0] - c[0]), R = rayon0 * k + 14;
+        var x = c[0] + Math.cos(ang) * R, y = c[1] + Math.sin(ang) * R;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+        ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-6, -8); ctx.lineTo(-6, 8); ctx.closePath();
+        ctx.fillStyle = m.remplissage; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore();
+      }
+    }
+  }
+})();
+</script>
+</body>
+</html>

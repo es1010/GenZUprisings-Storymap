@@ -3,28 +3,609 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Power Shift · StoryMap</title>
+<title>Le pouvoir change de mains ? · Power Shift?</title>
 <link rel="stylesheet" href="https://cdn.knightlab.com/libs/storymapjs/latest/css/storymap.css">
 <script src="https://cdn.knightlab.com/libs/storymapjs/latest/js/storymap-min.js"></script>
 <style>
-  html, body { height: 100%; margin: 0; background: #efeeea; }
-  #mapdiv { width: 100%; height: 100%; }
+  :root { --encre: #2b2d42; --papier: #efeeea; }
+  html, body { height: 100%; margin: 0; background: var(--papier); font-family: "Segoe UI", system-ui, sans-serif; color: var(--encre); }
+  body { display: flex; flex-direction: column; }
+  #barre { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 16px;
+           background: var(--encre); color: #fff; position: relative; z-index: 2000; }
+  #barre .titre { font-weight: 700; font-size: 15px; margin-right: 6px; white-space: nowrap; }
+  #barre .titre i { font-weight: 400; opacity: .75; }
+  #barre button, #barre select, #barre input { font: inherit; font-size: 14px; border-radius: 6px; border: 1px solid #6b6e85;
+           background: #3a3d55; color: #fff; padding: 6px 10px; min-height: 34px; }
+  #barre button { cursor: pointer; }
+  #lien-globe { color: #fff; font-size: 14px; text-decoration: none; border: 1px solid #6b6e85; border-radius: 6px; padding: 6px 10px;
+                background: #3a3d55; min-height: 20px; white-space: nowrap; }
+  #lien-globe:hover { background: #4a4e69; }
+  #barre button:hover, #barre select:hover { background: #4a4e69; }
+  #barre select { max-width: none; }
+  .recherche { position: relative; flex: 1 1 240px; max-width: 420px; }
+  .recherche input { width: 100%; box-sizing: border-box; }
+  .recherche input::placeholder { color: #c9cad6; }
+  #liste { display: none; position: absolute; top: 100%; left: 0; right: 0; margin: 4px 0 0; padding: 4px 0; list-style: none;
+           max-height: 60vh; overflow-y: auto; background: #fff; color: var(--encre); border-radius: 8px;
+           box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+  #liste.ouvert { display: block; }
+  #liste li { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; font-size: 14px; }
+  #liste li small { color: #6b6b6b; margin-left: auto; white-space: nowrap; }
+  #liste li.sel, #liste li:hover { background: #ecebf3; }
+  #liste li.vide { cursor: default; color: #6b6b6b; }
+  .pastille { flex: 0 0 auto; display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid #fff; box-shadow: 0 0 0 1px #888; }
+  #mapdiv { flex: 1 1 auto; min-height: 0; width: 100%; }
+
+  /* StoryMapJS : ses marqueurs rouges sont masqués, remplacés par les ronds de la carte du Day 12 */
+  .vco-mapmarker, .vco-mapmarker-active { display: none !important; }
+  .genz-rond { background: none; border: 0; cursor: pointer; }
+  .genz-rond svg { display: block; overflow: visible; }
+  .genz-rond.actif svg { filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 5px rgba(0,0,0,.75)); }
+  .genz-rond.famille svg { filter: drop-shadow(0 0 3px rgba(255,255,255,.95)); }
+  .genz-rond.estompe { opacity: .3; }
+  .vco-slide .genz-explication { font-size: 1.08em; line-height: 1.45; }
+
+  #bulle { position: fixed; z-index: 3000; pointer-events: none; display: none; max-width: 250px; padding: 6px 9px;
+           background: rgba(255,255,255,.97); color: var(--encre); border-radius: 6px; font-size: 12.5px; line-height: 1.35;
+           box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+  #bulle b { font-size: 13px; }
+
+  /* légende : large et basse, au-dessus de la ligne « StoryMapJS | Leaflet | © OpenStreetMap » */
+  .leaflet-bottom.leaflet-left .legende { margin-bottom: 30px !important; }
+  .legende { background: rgba(255,255,255,.95); color: var(--encre); padding: 6px 10px 7px; border-radius: 8px; font-size: 11px;
+             line-height: 1.25; box-shadow: 0 1px 8px rgba(0,0,0,.22); max-width: 760px; box-sizing: border-box; }
+  .legende .tete { display: flex; align-items: center; gap: 10px; }
+  .legende .tete label { display: flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; font-size: 12.5px; }
+  .legende .tete input { width: 15px; height: 15px; margin: 0; accent-color: var(--encre); cursor: pointer; }
+  .legende .tete .titre-leg { font-weight: 700; }
+  .legende .masquer { margin-left: auto; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; font-size: 14px;
+                      line-height: 1; color: #444; padding: 2px 7px; }
+  .legende.ferme .contenu { display: none; }
+  .legende .contenu { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: flex-start; overflow-y: auto; }
+  .legende .tete .note { color: #555; font-size: 10.5px; }
+  .legende .col { display: grid; gap: 2px; }
+  .legende .col > div { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .legende .col h5 { margin: 0 0 1px; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #555; font-weight: 700; }
+  .legende i { color: #666; }
+  .biv-bloc { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+  .biv { display: grid; grid-template-columns: 13px repeat(3, 18px); grid-template-rows: repeat(3, 18px) 13px; gap: 2px; }
+  .biv .case { border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+  .biv .fl-y { grid-column: 1; grid-row: 1 / 4; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; }
+  .biv .fl-x { grid-column: 2 / 5; grid-row: 4; text-align: center; font-size: 17px; font-weight: 700; line-height: 14px; }
+  .axes { font-size: 11px; line-height: 1.28; }
+  .axes b { font-size: 13px; }
+  .legende.sans-aplats .biv, .legende.sans-aplats .axes { opacity: .35; }
+  .legende svg.anneau { flex: 0 0 auto; }
+  .legende .trait { display: inline-block; width: 22px; height: 0; border-top: 3px solid; position: relative; }
+  .legende .trait::after { content: ""; position: absolute; right: -2px; top: -6px; border: 4.5px solid transparent; border-left: 7px solid currentColor; }
+  @media (max-width: 700px) {
+    #barre { padding: 6px 16px; gap: 6px; }
+    #barre .titre { width: 100%; font-size: 14px; }
+    #barre select { flex: 1 1 120px; width: 0; min-width: 0; max-width: none; }
+    .recherche { flex: 1 1 100%; max-width: none; }
+    .legende { font-size: 11px; padding: 6px 9px; }
+    .leaflet-bottom.leaflet-left .legende { margin-bottom: 26px !important; }
+  }
+
+  /* panneau de droite : tout le texte visible sans défiler (police adaptative) */
+  .vco-slide .vco-slide-content .vco-text .vco-headline-title, .vco-slide .vco-text h2.vco-headline-title {
+    font-size: clamp(18px, 1.1vw + 8px, 28px) !important; line-height: 1.1 !important; margin-bottom: .3em !important; }
+  .vco-slide .vco-text .vco-text-content p, .vco-slide .vco-text .vco-text-content li {
+    font-size: clamp(11px, 0.3vw + 8.3px, 14.5px) !important; line-height: 1.34 !important; margin: 0 0 .4em !important; }
+  .vco-slide .vco-text .vco-text-content ul { margin: 0 0 .45em !important; padding-left: 1.1em; }
+  .vco-slide .genz-explication { font-size: clamp(11.5px, 0.34vw + 8.6px, 15.5px) !important; line-height: 1.38 !important; }
+  .vco-slide .vco-text-content ul li { font-size: clamp(10.5px, 0.25vw + 8px, 13.5px) !important; line-height: 1.28 !important; margin: 0 !important; }
+  .vco-slide .vco-media .vco-media-image { max-height: 28vh !important; width: auto; cursor: zoom-in; }
+  .vco-slide .vco-media .vco-media-iframe iframe { height: 46vh !important; min-height: 260px; }
+  .vco-slide .vco-media .vco-caption, .vco-slide .vco-media .vco-credit { font-size: 11px !important; line-height: 1.25 !important; }
+  .vco-slide .genz-sources p { font-size: clamp(10.5px, 0.2vw + 8.4px, 13px) !important; line-height: 1.3 !important; }
+  .vco-slide .genz-credits { columns: 3; column-gap: 14px; }
+  .vco-slide .vco-text .vco-text-content ul.genz-credits li { font-size: 9.5px !important; line-height: 1.2 !important; margin: 0 !important; break-inside: avoid; }
+  .vco-slide .genz-agrandir { font-size: 11px; opacity: .85; }
+
+  /* visionneuse d'images plein écran (zoom molette / pincement, déplacement) */
+  #visionneuse { position: fixed; inset: 0; z-index: 4000; background: rgba(20,21,33,.95); display: none; touch-action: none; overflow: hidden; }
+  #visionneuse.ouvert { display: block; }
+  #visionneuse img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; user-select: none; -webkit-user-drag: none;
+                     cursor: grab; box-shadow: 0 4px 30px rgba(0,0,0,.5); }
+  #visionneuse img.saisi { cursor: grabbing; }
+  #visionneuse .outils { position: absolute; top: 12px; right: 12px; display: flex; gap: 8px; z-index: 2; }
+  #visionneuse .outils button { font: inherit; font-size: 18px; width: 42px; height: 42px; border-radius: 50%; border: 1px solid #888;
+                                background: rgba(255,255,255,.92); color: var(--encre); cursor: pointer; }
+  #visionneuse .legende-img { position: absolute; left: 16px; right: 16px; bottom: 12px; color: #fff; font-size: 13px; text-align: center;
+                              text-shadow: 0 1px 3px #000; pointer-events: none; }
 </style>
 </head>
 <body>
+<nav id="barre" aria-label="Navigation de la StoryMap">
+  <span class="titre">Le pouvoir change de mains ? <i>· Power Shift?</i></span>
+  <button id="btn-ensemble" type="button" title="Revenir à la diapositive de titre et à la vue d'ensemble">⌂ Vue d'ensemble</button>
+  <a id="lien-globe" href="globe_intro.html" title="Intro : le globe des mouvements, année par année">🌐 Intro globe</a>
+  <select id="chapitres" aria-label="Aller au chapitre"><option value="">Chapitres…</option></select>
+  <div class="recherche">
+    <input id="cherche" type="search" autocomplete="off" placeholder="Rechercher un mouvement, un pays, une ville…"
+           aria-label="Rechercher un mouvement" aria-controls="liste" aria-expanded="false" role="combobox">
+    <ul id="liste" role="listbox"></ul>
+  </div>
+</nav>
 <div id="mapdiv"></div>
-<!-- Copie intégrée du JSON : la page marche aussi ouverte en file:// (sans serveur). -->
-<script id="donnees" type="application/json">{"storymap": {"language": "fr", "map_type": "osm:standard", "calculate_zoom": false, "slides": [{"type": "overview", "date": "2014–2026", "location": {"lat": 20, "lon": 20, "zoom": 2, "line": true}, "text": {"headline": "Le pouvoir change de mains ? · <i>Power Shift?<\/i>", "text": "<p><b>Révoltes de la génération Z, 2014–2026<\/b> · <i>Gen Z uprisings, 2014–2026<\/i><\/p><p>Des parapluies zillennials de Hong Kong (2014) aux lycéens de Paris (2026) : 38 mouvements, leurs issues et les symboles qui sautent d'un continent à l'autre.<\/p><p><i>From the zillennial umbrellas of Hong Kong (2014) to the high-schoolers of Paris (2026): 38 movements, their outcomes and the symbols that jump between continents.<\/i><\/p><p><small>#30DayMapChallenge 2026 · Day 27 « New tool » · d'après la carte du Day 12 « Power »<\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Hong_Kong_Umbrella_Revolution_-umbrellarevolution_-UmbrellaMovement_(15292823874)_(cropped).jpg?width=1280", "credit": "auteur sur la page Commons · CC BY 2.0 · Wikimedia Commons", "caption": "Hong Kong, 2014 · parapluies jaunes · yellow umbrellas"}, "background": {"color": "#33364d"}}, {"date": "ONU WPP 2024 × OIT 2025", "location": {"lat": 15, "lon": 30, "zoom": 2, "line": true}, "text": {"headline": "Jeunes et sans emploi ? · <i>Young and jobless?<\/i>", "text": "<p>Sur la carte du Day 12, chaque pays croise deux variables : l'<b>âge médian<\/b> (ONU, World Population Prospects 2024, via Our World in Data) et le <b>chômage des 15–24 ans<\/b> (OIT via Banque mondiale, 2025 ; Taïwan : DGBAS ; Kosovo : KAS), en 3 classes chacune.<\/p><p>Âge médian : moins de 25 ans, 25–36 ans, plus de 36 ans. Chômage des jeunes : moins de 9,3 %, 9,3–18,2 %, plus de 18,2 %.<\/p><p>Âge médian (valeur médiane) des pays touchés : <b>33 ans<\/b> contre 33 ans pour l'ensemble des pays ; chômage des jeunes : <b>13,0 %<\/b> contre 13,0 %.<\/p><p><i>Each country crosses median age (UN WPP 2024) and youth unemployment (ILO/World Bank 2025). Median for countries with a movement: 33 years and 13.0 % (all countries: 33 years, 13.0 %).<\/i><\/p>"}, "media": {"url": "carte_power_genz_day12.png", "credit": "Carte Day 12 « Power » · CC BY-SA 4.0", "caption": "Âge médian × chômage des 15–24 ans · median age × youth unemployment"}, "background": {"color": "#2f5361"}}, {"date": "2014–2026", "location": {"lat": 20, "lon": 20, "zoom": 2, "line": true}, "text": {"headline": "Frise 2014–2026 · <i>Timeline 2014–2026<\/i>", "text": "<p>Un rond par mouvement, à sa date de début ; couleur = issue. Sous l'axe, les cas limites. · <i>One dot per movement at its start date; colour = outcome.<\/i><\/p><p><b>2014–2018 · Précurseurs<\/b> · <i>Forerunners<\/i> (5)<\/p><ul><li>2014 · <b>Mouvement des Tournesols<\/b> (Taïwan) – victoire<\/li><li>2014 · <b>Qeerroo – jeunesse oromo<\/b> (Éthiopie) – victoire<\/li><li>2014 · <b>Révolte des parapluies<\/b> (Hong Kong) – réprimé<\/li><li>2018 · <b>Grèves pour le climat<\/b> (Suède (mondial)) – concessions obtenues<\/li><li>2018 · <b>Révolution soudanaise<\/b> (Soudan) – victoire<\/li><\/ul><p><b>2019–2023 · 1re vague numérique<\/b> · <i>First digital wave<\/i> (8)<\/p><ul><li>2019 · <b>Hong Kong 2019<\/b> (Hong Kong) – réprimé<\/li><li>2019 · <b>Estallido social<\/b> (Chili) – concessions obtenues<\/li><li>2020 · <b>Manifestations thaïlandaises<\/b> (Thaïlande) – réprimé<\/li><li>2020 · <b>#EndSARS<\/b> (Nigeria) – concessions obtenues<\/li><li>2021 · <b>Révolution du printemps<\/b> (Myanmar) – réprimé<\/li><li>2022 · <b>Aragalaya<\/b> (Sri Lanka) – victoire<\/li><li>2022 · <b>Femme, Vie, Liberté<\/b> (Iran) – réprimé<\/li><li>2023 · <b>Loi sur les agents de l'étranger<\/b> (Géorgie) – victoire<\/li><\/ul><p><b>2023–2025 · Vague Gen Z<\/b> · <i>Gen Z wave<\/i> (15)<\/p><ul><li>2024 · <b>#RejectFinanceBill<\/b> (Kenya) – concessions obtenues<\/li><li>2024 · <b>Révolution de juillet<\/b> (Bangladesh) – victoire<\/li><li>2024 · <b>Mouvement étudiant serbe<\/b> (Serbie) – victoire<\/li><li>2024 · <b>Manifestations pro-UE<\/b> (Géorgie) – en cours<\/li><li>2025 · <b>Indonésie 2025<\/b> (Indonésie) – concessions obtenues<\/li><li>2025 · <b>Révolte Gen Z du Népal<\/b> (Népal) – victoire<\/li><li>2025 · <b>Génération Z Pérou<\/b> (Pérou) – concessions obtenues<\/li><li>2025 · <b>Timor oriental 2025<\/b> (Timor oriental) – victoire<\/li><li>2025 · <b>Marche du trillion de pesos<\/b> (Philippines) – concessions obtenues<\/li><li>2025 · <b>Ladakh<\/b> (Inde) – réprimé<\/li><li>2025 · <b>Gen Z Madagascar<\/b> (Madagascar) – victoire<\/li><li>2025 · <b>GenZ 212<\/b> (Maroc) – concessions obtenues<\/li><li>2025 · <b>Tanzanie 2025<\/b> (Tanzanie) – réprimé<\/li><li>2025 · <b>Marche Génération Z<\/b> (Mexique) – réprimé<\/li><li>2025 · <b>Bulgarie 2025<\/b> (Bulgarie) – victoire<\/li><\/ul><p><b>2026 · Vague européenne<\/b> · <i>European wave<\/i> (10)<\/p><ul><li>2026 · <b>Ouganda 2026<\/b> (Ouganda) – réprimé<\/li><li>2026 · <b>Bolivie 2026<\/b> (Bolivie) – concessions obtenues<\/li><li>2026 · <b>Révolution des flamants roses<\/b> (Albanie) – en cours<\/li><li>2026 · <b>Cockroach Janta Party (NEET)<\/b> (Inde) – victoire<\/li><li>2026 · <b>Mouvement lycéen<\/b> (France) – en cours<\/li><li>2026 · <b>Ni una Maricarmen más<\/b> (Espagne) – en cours<\/li><li>2026 · <b>Blocus lycéens<\/b> (Belgique) – en cours<\/li><li>2026 · <b>Logement étudiant<\/b> (Grèce) – en cours<\/li><li>2026 · <b>No Meloni Day<\/b> (Italie) – en cours<\/li><li>2026 · <b>Gen Z regelt<\/b> (Allemagne) – en cours<\/li><\/ul>"}, "media": {"url": "frise_genz_2014_2026.png", "credit": "Frise réalisée avec matplotlib · CC BY-SA 4.0", "caption": "4 époques, 38 mouvements · 4 periods, 38 movements"}, "background": {"color": "#33364d"}}, {"date": "18 mars 2014 – 10 avr. 2014", "location": {"lat": 25.04, "lon": 121.52, "zoom": 6, "line": true}, "text": {"headline": "Mouvement des Tournesols · Taïwan", "text": "<p><b>Dates<\/b> : 18 mars 2014 – 10 avr. 2014 (24 jours) · <i>Mar 18, 2014 – Apr 10, 2014<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Symbole<\/b> : 🌻 Tournesols, Parlement occupé · <i>Sunflowers, occupied parliament<\/i><\/p><p><b>Famille de symbole<\/b> : Milk Tea Alliance<\/p><p><b>Époque<\/b> : Précurseurs 2014–2018 · <i>Forerunners<\/i><\/p><p><b>Contexte<\/b> : âge médian 45 ans, chômage des 15–24 ans 11,4 % · <i>median age 45, youth unemployment 11.4 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Sunflower_Movement_collage.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Sunflower_Movement_collage.jpg?width=1280", "credit": "KOKUYO合併 · CC BY-SA 3.0 · Wikimedia Commons", "caption": "Tournesols, Parlement occupé · Sunflowers, occupied parliament"}, "background": {"color": "#6e5600"}}, {"date": "25 avr. 2014 – 15 févr. 2018", "location": {"lat": 9.03, "lon": 38.74, "zoom": 6, "line": true}, "text": {"headline": "Qeerroo – jeunesse oromo · Éthiopie", "text": "<p><b>Dates<\/b> : 25 avr. 2014 – 15 févr. 2018 (1393 jours) · <i>Apr 25, 2014 – Feb 15, 2018<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Symbole<\/b> : ✖ Poignets croisés · <i>Crossed wrists<\/i><\/p><p><b>Époque<\/b> : Précurseurs 2014–2018 · <i>Forerunners<\/i><\/p><p><b>Contexte<\/b> : âge médian 19 ans, chômage des 15–24 ans 5,4 % · <i>median age 19, youth unemployment 5.4 %<\/i><\/p>"}, "media": {"url": "", "credit": "", "caption": "Poignets croisés · Crossed wrists"}, "background": {"color": "#6e5600"}}, {"date": "26 sept. 2014 – 15 déc. 2014", "location": {"lat": 22.28, "lon": 114.16, "zoom": 6, "line": true}, "text": {"headline": "Révolte des parapluies · Hong Kong", "text": "<p><b>Dates<\/b> : 26 sept. 2014 – 15 déc. 2014 (81 jours) · <i>Sep 26, 2014 – Dec 15, 2014<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Symbole<\/b> : ☂ Parapluie-bouclier, ruban jaune · <i>Umbrella shields, yellow ribbon<\/i><\/p><p><b>Époque<\/b> : Précurseurs 2014–2018 · <i>Forerunners<\/i><\/p><p><b>Contexte<\/b> : âge médian 47 ans, chômage des 15–24 ans 9,0 % · <i>median age 47, youth unemployment 9.0 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Hong_Kong_Umbrella_Revolution_-umbrellarevolution_-UmbrellaMovement_(15292823874)_(cropped).jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Hong_Kong_Umbrella_Revolution_-umbrellarevolution_-UmbrellaMovement_(15292823874)_(cropped).jpg?width=1280", "credit": "auteur sur la page Commons · CC BY 2.0 · Wikimedia Commons", "caption": "Parapluie-bouclier, ruban jaune · Umbrella shields, yellow ribbon"}, "background": {"color": "#2b2d42"}}, {"date": "20 août 2018 – 1 mars 2020", "location": {"lat": 59.33, "lon": 18.07, "zoom": 6, "line": true}, "text": {"headline": "Grèves pour le climat · Suède (mondial)", "text": "<p><b>Dates<\/b> : 20 août 2018 – 1 mars 2020 (560 jours) · <i>Aug 20, 2018 – Mar 1, 2020<\/i><\/p><p><b>Issue<\/b> : concessions obtenues · <i>concessions won<\/i><\/p><p><b>Symbole<\/b> : 🌍 Skolstrejk för klimatet<\/p><p><b>Slogan<\/b> : « Skolstrejk för klimatet »<\/p><p><b>Époque<\/b> : Précurseurs 2014–2018 · <i>Forerunners<\/i><\/p><p><b>Contexte<\/b> : âge médian 40 ans, chômage des 15–24 ans 24,3 % · <i>median age 40, youth unemployment 24.3 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Mani_rosse_sulla_borsa_-_Fridays_for_Future_pre-COP26_Milano,_Lombardy,_Italy_-_2021-10-01.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Mani_rosse_sulla_borsa_-_Fridays_for_Future_pre-COP26_Milano,_Lombardy,_Italy_-_2021-10-01.jpg?width=1280", "credit": "Mænsard vokser · CC BY-SA 4.0 · Wikimedia Commons", "caption": "« Skolstrejk för klimatet »"}, "background": {"color": "#8a4512"}}, {"date": "19 déc. 2018 – 17 août 2019", "location": {"lat": 15.5, "lon": 32.56, "zoom": 6, "line": true}, "text": {"headline": "Révolution soudanaise · Soudan", "text": "<p><b>Dates<\/b> : 19 déc. 2018 – 17 août 2019 (242 jours) · <i>Dec 19, 2018 – Aug 17, 2019<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Symbole<\/b> : 🍞 Alaa Salah, comités de résistance · <i>Alaa Salah, resistance committees<\/i><\/p><p><b>Slogan<\/b> : « Tasgut bas »<\/p><p><b>Époque<\/b> : Précurseurs 2014–2018 · <i>Forerunners<\/i><\/p><p><b>Contexte<\/b> : âge médian 19 ans, chômage des 15–24 ans 12,0 % · <i>median age 19, youth unemployment 12.0 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Sudanese_protestors_celebrate_signing_of_political_agreement.png\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Sudanese_protestors_celebrate_signing_of_political_agreement.png?width=1280", "credit": "VOA · Public domain · Wikimedia Commons", "caption": "« Tasgut bas »"}, "background": {"color": "#6e5600"}}, {"date": "9 juin 2019 – 30 juin 2020", "location": {"lat": 22.36, "lon": 114.2, "zoom": 6, "line": true}, "text": {"headline": "Hong Kong 2019 · Hong Kong", "text": "<p><b>Dates<\/b> : 9 juin 2019 – 30 juin 2020 (388 jours) · <i>Jun 9, 2019 – Jun 30, 2020<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Symbole<\/b> : 💧 Be water, lasers, cônes · <i>Be water, lasers, traffic cones<\/i><\/p><p><b>Slogan<\/b> : « Be water »<\/p><p><b>Famille de symbole<\/b> : Milk Tea Alliance<\/p><p><b>Époque<\/b> : 1re vague numérique 2019–2023 · <i>First digital wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 47 ans, chômage des 15–24 ans 9,0 % · <i>median age 47, youth unemployment 9.0 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Hong_Kong_anti-extradition_bill_protest_(48108527758).jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Hong_Kong_anti-extradition_bill_protest_(48108527758).jpg?width=1280", "credit": "Studio Incendo · CC BY 2.0 · Wikimedia Commons", "caption": "« Be water »"}, "background": {"color": "#2b2d42"}}, {"date": "18 oct. 2019 – 15 mars 2020", "location": {"lat": -33.45, "lon": -70.67, "zoom": 6, "line": true}, "text": {"headline": "Estallido social · Chili", "text": "<p><b>Dates<\/b> : 18 oct. 2019 – 15 mars 2020 (150 jours) · <i>Oct 18, 2019 – Mar 15, 2020<\/i><\/p><p><b>Issue<\/b> : concessions obtenues · <i>concessions won<\/i><\/p><p><b>Symbole<\/b> : 🐕 Tourniquets, chien Matapacos · <i>Turnstiles, Matapacos dog<\/i><\/p><p><b>Slogan<\/b> : « No son 30 pesos, son 30 años »<\/p><p><b>Époque<\/b> : 1re vague numérique 2019–2023 · <i>First digital wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 37 ans, chômage des 15–24 ans 21,6 % · <i>median age 37, youth unemployment 21.6 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Marcha_Mas_Grande_De_Chile_2019_Plaza_Baquedano_Drone.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Marcha_Mas_Grande_De_Chile_2019_Plaza_Baquedano_Drone.jpg?width=1280", "credit": "Hugo Morales · CC BY-SA 4.0 · Wikimedia Commons", "caption": "« No son 30 pesos, son 30 años »"}, "background": {"color": "#8a4512"}}, {"date": "18 juil. 2020 – 31 déc. 2021", "location": {"lat": 13.75, "lon": 100.5, "zoom": 6, "line": true}, "text": {"headline": "Manifestations thaïlandaises · Thaïlande", "text": "<p><b>Dates<\/b> : 18 juil. 2020 – 31 déc. 2021 (532 jours) · <i>Jul 18, 2020 – Dec 31, 2021<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Symbole<\/b> : 🤟 Salut à 3 doigts, canards · <i>Three-finger salute, rubber ducks<\/i><\/p><p><b>Famille de symbole<\/b> : Milk Tea Alliance<\/p><p><b>Époque<\/b> : 1re vague numérique 2019–2023 · <i>First digital wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 41 ans, chômage des 15–24 ans 4,5 % · <i>median age 41, youth unemployment 4.5 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Protest_in_2020_Democracy_Monument_(I).jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Protest_in_2020_Democracy_Monument_(I).jpg?width=1280", "credit": "This Photo was taken by Supanut Arunoprayote. Feel free to use any of my images, but please mention me as the author and · CC BY 4.0 · Wikimedia Commons", "caption": "Salut à 3 doigts, canards · Three-finger salute, rubber ducks"}, "background": {"color": "#2b2d42"}}, {"date": "8 oct. 2020 – 24 oct. 2020", "location": {"lat": 6.52, "lon": 3.38, "zoom": 6, "line": true}, "text": {"headline": "#EndSARS · Nigeria", "text": "<p><b>Dates<\/b> : 8 oct. 2020 – 24 oct. 2020 (17 jours) · <i>Oct 8, 2020 – Oct 24, 2020<\/i><\/p><p><b>Issue<\/b> : concessions obtenues · <i>concessions won<\/i><\/p><p><b>Symbole<\/b> : 🚩 Drapeau taché de sang · <i>Bloodstained flag<\/i><\/p><p><b>Slogan<\/b> : « #EndSARS »<\/p><p><b>Époque<\/b> : 1re vague numérique 2019–2023 · <i>First digital wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 18 ans, chômage des 15–24 ans 5,3 % · <i>median age 18, youth unemployment 5.3 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Protest_against_police_brutality_in_Nigeria.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Protest_against_police_brutality_in_Nigeria.jpg?width=1280", "credit": "TobiJamesCandids · CC BY-SA 4.0 · Wikimedia Commons", "caption": "« #EndSARS »"}, "background": {"color": "#8a4512"}}, {"date": "1 févr. 2021 – 31 déc. 2021", "location": {"lat": 16.84, "lon": 96.17, "zoom": 6, "line": true}, "text": {"headline": "Révolution du printemps · Myanmar", "text": "<p><b>Dates<\/b> : 1 févr. 2021 – 31 déc. 2021 (334 jours) · <i>Feb 1, 2021 – Dec 31, 2021<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Symbole<\/b> : 🤟 Salut à 3 doigts, casseroles · <i>Three-finger salute, pots and pans<\/i><\/p><p><b>Slogan<\/b> : « Everything will be OK »<\/p><p><b>Famille de symbole<\/b> : Milk Tea Alliance<\/p><p><b>Époque<\/b> : 1re vague numérique 2019–2023 · <i>First digital wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 30 ans, chômage des 15–24 ans 9,8 % · <i>median age 30, youth unemployment 9.8 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:2021_Myanmar_Protest_in_Hleden.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/2021_Myanmar_Protest_in_Hleden.jpg?width=1280", "credit": "VOA Burmese · Public domain · Wikimedia Commons", "caption": "« Everything will be OK »"}, "background": {"color": "#2b2d42"}}, {"date": "31 mars 2022 – 14 juil. 2022", "location": {"lat": 6.93, "lon": 79.85, "zoom": 6, "line": true}, "text": {"headline": "Aragalaya · Sri Lanka", "text": "<p><b>Dates<\/b> : 31 mars 2022 – 14 juil. 2022 (106 jours) · <i>Mar 31, 2022 – Jul 14, 2022<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Symbole<\/b> : 🏊 Piscine du palais présidentiel · <i>Presidential palace pool<\/i><\/p><p><b>Slogan<\/b> : « Go Home Gota »<\/p><p><b>Époque<\/b> : 1re vague numérique 2019–2023 · <i>First digital wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 33 ans, chômage des 15–24 ans 18,6 % · <i>median age 33, youth unemployment 18.6 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Anti-government_protest_in_Sri_Lanka_2022.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Anti-government_protest_in_Sri_Lanka_2022.jpg?width=1280", "credit": "AntanO · CC BY-SA 4.0 · Wikimedia Commons", "caption": "« Go Home Gota »"}, "background": {"color": "#6e5600"}}, {"date": "16 sept. 2022 – 28 févr. 2023", "location": {"lat": 35.69, "lon": 51.39, "zoom": 6, "line": true}, "text": {"headline": "Femme, Vie, Liberté · Iran", "text": "<p><b>Dates<\/b> : 16 sept. 2022 – 28 févr. 2023 (166 jours) · <i>Sep 16, 2022 – Feb 28, 2023<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Symbole<\/b> : ✂ Cheveux coupés · <i>Cut hair<\/i><\/p><p><b>Slogan<\/b> : « Zan, Zendegi, Azadi »<\/p><p><b>Époque<\/b> : 1re vague numérique 2019–2023 · <i>First digital wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 34 ans, chômage des 15–24 ans 21,9 % · <i>median age 34, youth unemployment 21.9 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Amir_Kabir_University_uprising_September_2022_(3).jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Amir_Kabir_University_uprising_September_2022_(3).jpg?width=1280", "credit": "Darafsh · CC BY-SA 4.0 · Wikimedia Commons", "caption": "« Zan, Zendegi, Azadi »"}, "background": {"color": "#2b2d42"}}, {"date": "7 mars 2023 – 10 mars 2023", "location": {"lat": 41.69, "lon": 44.8, "zoom": 6, "line": true}, "text": {"headline": "Loi sur les agents de l'étranger · Géorgie", "text": "<p><b>Dates<\/b> : 7 mars 2023 – 10 mars 2023 (4 jours) · <i>Mar 7, 2023 – Mar 10, 2023<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Symbole<\/b> : 🇪🇺 Drapeau européen face aux canons à eau · <i>EU flag against water cannons<\/i><\/p><p><b>Slogan<\/b> : « Non à la loi russe »<\/p><p><b>Époque<\/b> : 1re vague numérique 2019–2023 · <i>First digital wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 37 ans, chômage des 15–24 ans 30,3 % · <i>median age 37, youth unemployment 30.3 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:8_march_protest_in_Tbilisi_(cropped).jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/8_march_protest_in_Tbilisi_(cropped).jpg?width=1280", "credit": "DerFuchs · CC BY-SA 4.0 · Wikimedia Commons", "caption": "« Non à la loi russe »"}, "background": {"color": "#6e5600"}}, {"date": "18 juin 2024 – 31 juil. 2024", "location": {"lat": -1.29, "lon": 36.82, "zoom": 6, "line": true}, "text": {"headline": "#RejectFinanceBill · Kenya", "text": "<p><b>Dates<\/b> : 18 juin 2024 – 31 juil. 2024 (44 jours) · <i>Jun 18, 2024 – Jul 31, 2024<\/i><\/p><p><b>Issue<\/b> : concessions obtenues · <i>concessions won<\/i><\/p><p><b>Symbole<\/b> : 🏛 Parlement envahi, Spaces X · <i>Parliament stormed, X Spaces<\/i><\/p><p><b>Slogan<\/b> : « #RejectFinanceBill2024 »<\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 20 ans, chômage des 15–24 ans 15,2 % · <i>median age 20, youth unemployment 15.2 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Kenya_2024_protests_(21).jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Kenya_2024_protests_(21).jpg?width=1280", "credit": "Capital FM Kenya · CC BY 3.0 · Wikimedia Commons", "caption": "« #RejectFinanceBill2024 »"}, "background": {"color": "#8a4512"}}, {"date": "1 juil. 2024 – 5 août 2024", "location": {"lat": 23.81, "lon": 90.41, "zoom": 6, "line": true}, "text": {"headline": "Révolution de juillet · Bangladesh", "text": "<p><b>Dates<\/b> : 1 juil. 2024 – 5 août 2024 (36 jours) · <i>Jul 1, 2024 – Aug 5, 2024<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Symbole<\/b> : 🙌 Abu Sayed bras en croix · <i>Abu Sayed, arms outstretched<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 26 ans, chômage des 15–24 ans 9,4 % · <i>median age 26, youth unemployment 9.4 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:7.Bangladesh_quota_reform_movement_2024.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/7.Bangladesh_quota_reform_movement_2024.jpg?width=1280", "credit": "Rayhan Ahmed · CC BY-SA 4.0 · Wikimedia Commons", "caption": "Abu Sayed bras en croix · Abu Sayed, arms outstretched"}, "background": {"color": "#6e5600"}}, {"date": "1 nov. 2024 – 25 oct. 2026", "location": {"lat": 44.79, "lon": 20.45, "zoom": 6, "line": true}, "text": {"headline": "Mouvement étudiant serbe · Serbie", "text": "<p><b>Dates<\/b> : 1 nov. 2024 – 25 oct. 2026 (724 jours) · <i>Nov 1, 2024 – Oct 25, 2026<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Symbole<\/b> : ✋ Main rouge, 16 min de silence · <i>Red hand, 16 minutes of silence<\/i><\/p><p><b>Slogan<\/b> : « Pumpaj! »<\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 44 ans, chômage des 15–24 ans 20,9 % · <i>median age 44, youth unemployment 20.9 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Protest_Trg_Slavija_22._dec_VOA.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Protest_Trg_Slavija_22._dec_VOA.jpg?width=1280", "credit": "Stefan Miljuš · Public domain · Wikimedia Commons", "caption": "« Pumpaj! »"}, "background": {"color": "#6e5600"}}, {"date": "depuis le 28 nov. 2024", "location": {"lat": 41.72, "lon": 44.79, "zoom": 6, "line": true}, "text": {"headline": "Manifestations pro-UE · Géorgie", "text": "<p><b>Dates<\/b> : depuis le 28 nov. 2024 (711 jours) · <i>since Nov 28, 2024<\/i><\/p><p><b>Issue<\/b> : en cours · <i>ongoing<\/i><\/p><p><b>Symbole<\/b> : 🇪🇺 Drapeaux UE, feux d'artifice · <i>EU flags, fireworks<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 37 ans, chômage des 15–24 ans 30,3 % · <i>median age 37, youth unemployment 30.3 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Tbilisi_-_election_protests_28_October_2024.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Tbilisi_-_election_protests_28_October_2024.jpg?width=1280", "credit": "Jelger Groeneveld · CC BY 2.0 · Wikimedia Commons", "caption": "Drapeaux UE, feux d'artifice · EU flags, fireworks"}, "background": {"color": "#55287f"}}, {"date": "25 août 2025 – 15 sept. 2025", "location": {"lat": -6.2, "lon": 106.85, "zoom": 6, "line": true}, "text": {"headline": "Indonésie 2025 · Indonésie", "text": "<p><b>Dates<\/b> : 25 août 2025 – 15 sept. 2025 (22 jours) · <i>Aug 25, 2025 – Sep 15, 2025<\/i><\/p><p><b>Issue<\/b> : concessions obtenues · <i>concessions won<\/i><\/p><p><b>Symbole<\/b> : ☠ One Piece, Brave Pink / Hero Green<\/p><p><b>Famille de symbole<\/b> : Drapeau One Piece · <i>One Piece flag<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 30 ans, chômage des 15–24 ans 13,0 % · <i>median age 30, youth unemployment 13.0 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:2025_Indonesia_Gelap_protests_21_February_(cropped).jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/2025_Indonesia_Gelap_protests_21_February_(cropped).jpg?width=1280", "credit": "David Wadie Fisher-Freberg · CC BY-SA 4.0 · Wikimedia Commons", "caption": "One Piece, Brave Pink / Hero Green"}, "background": {"color": "#8a4512"}}, {"date": "8 sept. 2025 – 12 sept. 2025", "location": {"lat": 27.71, "lon": 85.32, "zoom": 6, "line": true}, "text": {"headline": "Révolte Gen Z du Népal · Népal", "text": "<p><b>Dates<\/b> : 8 sept. 2025 – 12 sept. 2025 (5 jours) · <i>Sep 8, 2025 – Sep 12, 2025<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Symbole<\/b> : ☠ One Piece, PM choisie sur Discord · <i>One Piece, PM picked on Discord<\/i><\/p><p><b>Slogan<\/b> : « #NepoKids »<\/p><p><b>Famille de symbole<\/b> : Drapeau One Piece · <i>One Piece flag<\/i>, Organisation sur Discord · <i>Organised on Discord<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 25 ans, chômage des 15–24 ans 20,6 % · <i>median age 25, youth unemployment 20.6 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:2025_Nepalese_Gen_Z_protesters_infront_of_Bharatpur_mahanagarpalika_office.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/2025_Nepalese_Gen_Z_protesters_infront_of_Bharatpur_mahanagarpalika_office.jpg?width=1280", "credit": "हिमाल सुवेदी · CC BY-SA 4.0 · Wikimedia Commons", "caption": "« #NepoKids »"}, "background": {"color": "#6e5600"}}, {"date": "13 sept. 2025 – 31 oct. 2025", "location": {"lat": -12.05, "lon": -77.04, "zoom": 6, "line": true}, "text": {"headline": "Génération Z Pérou · Pérou", "text": "<p><b>Dates<\/b> : 13 sept. 2025 – 31 oct. 2025 (49 jours) · <i>Sep 13, 2025 – Oct 31, 2025<\/i><\/p><p><b>Issue<\/b> : concessions obtenues · <i>concessions won<\/i><\/p><p><b>Symbole<\/b> : ☠ One Piece au chullo · <i>One Piece with chullo hat<\/i><\/p><p><b>Famille de symbole<\/b> : Drapeau One Piece · <i>One Piece flag<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 30 ans, chômage des 15–24 ans 9,5 % · <i>median age 30, youth unemployment 9.5 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Bandera_en_protestas.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Bandera_en_protestas.jpg?width=1280", "credit": "Futuropopular · CC BY-SA 4.0 · Wikimedia Commons", "caption": "One Piece au chullo · One Piece with chullo hat"}, "background": {"color": "#8a4512"}}, {"date": "15 sept. 2025 – 17 sept. 2025", "location": {"lat": -8.56, "lon": 125.57, "zoom": 6, "line": true}, "text": {"headline": "Timor oriental 2025 · Timor oriental", "text": "<p><b>Dates<\/b> : 15 sept. 2025 – 17 sept. 2025 (3 jours) · <i>Sep 15, 2025 – Sep 17, 2025<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Symbole<\/b> : 🚙 Victoire en 3 jours · <i>Won in 3 days<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 22 ans, chômage des 15–24 ans 3,7 % · <i>median age 22, youth unemployment 3.7 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:MPL08030.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/MPL08030.jpg?width=1280", "credit": "Maugulo · CC BY 4.0 · Wikimedia Commons", "caption": "Victoire en 3 jours · Won in 3 days"}, "background": {"color": "#6e5600"}}, {"date": "21 sept. 2025 – 30 nov. 2025", "location": {"lat": 14.6, "lon": 120.98, "zoom": 6, "line": true}, "text": {"headline": "Marche du trillion de pesos · Philippines", "text": "<p><b>Dates<\/b> : 21 sept. 2025 – 30 nov. 2025 (71 jours) · <i>Sep 21, 2025 – Nov 30, 2025<\/i><\/p><p><b>Issue<\/b> : concessions obtenues · <i>concessions won<\/i><\/p><p><b>Symbole<\/b> : ☠ One Piece<\/p><p><b>Famille de symbole<\/b> : Drapeau One Piece · <i>One Piece flag<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 26 ans, chômage des 15–24 ans 7,0 % · <i>median age 26, youth unemployment 7.0 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Smokes,_fire_and_a_flag.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Smokes,_fire_and_a_flag.jpg?width=1280", "credit": "Cyberneticboylol · CC BY-SA 4.0 · Wikimedia Commons", "caption": "One Piece"}, "background": {"color": "#8a4512"}}, {"date": "24 sept. 2025 – 26 sept. 2025", "location": {"lat": 34.16, "lon": 77.58, "zoom": 6, "line": true}, "text": {"headline": "Ladakh · Inde", "text": "<p><b>Dates<\/b> : 24 sept. 2025 – 26 sept. 2025 (3 jours) · <i>Sep 24, 2025 – Sep 26, 2025<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Symbole<\/b> : 🏔 Siège du BJP incendié · <i>BJP office torched<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 29 ans, chômage des 15–24 ans 16,0 % · <i>median age 29, youth unemployment 16.0 %<\/i><\/p>"}, "media": {"url": "", "credit": "", "caption": "Siège du BJP incendié · BJP office torched"}, "background": {"color": "#2b2d42"}}, {"date": "25 sept. 2025 – 17 oct. 2025", "location": {"lat": -18.88, "lon": 47.51, "zoom": 6, "line": true}, "text": {"headline": "Gen Z Madagascar · Madagascar", "text": "<p><b>Dates<\/b> : 25 sept. 2025 – 17 oct. 2025 (23 jours) · <i>Sep 25, 2025 – Oct 17, 2025<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Symbole<\/b> : ☠ One Piece au chapeau satroka · <i>One Piece with satroka hat<\/i><\/p><p><b>Famille de symbole<\/b> : Drapeau One Piece · <i>One Piece flag<\/i>, Organisation sur Discord · <i>Organised on Discord<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 19 ans, chômage des 15–24 ans 5,2 % · <i>median age 19, youth unemployment 5.2 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Roadblock_in_Antananarivo_during_Gen_Z_protests.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Roadblock_in_Antananarivo_during_Gen_Z_protests.jpg?width=1280", "credit": "Raveloaritiana Mamisoa · CC BY-SA 4.0 · Wikimedia Commons", "caption": "One Piece au chapeau satroka · One Piece with satroka hat"}, "background": {"color": "#6e5600"}}, {"date": "27 sept. 2025 – 31 oct. 2025", "location": {"lat": 34.02, "lon": -6.84, "zoom": 6, "line": true}, "text": {"headline": "GenZ 212 · Maroc", "text": "<p><b>Dates<\/b> : 27 sept. 2025 – 31 oct. 2025 (35 jours) · <i>Sep 27, 2025 – Oct 31, 2025<\/i><\/p><p><b>Issue<\/b> : concessions obtenues · <i>concessions won<\/i><\/p><p><b>Symbole<\/b> : 🏥 Discord, stades vs hôpitaux · <i>Discord, stadiums vs hospitals<\/i><\/p><p><b>Slogan<\/b> : « Stades ok, hôpitaux où ? »<\/p><p><b>Famille de symbole<\/b> : Organisation sur Discord · <i>Organised on Discord<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 30 ans, chômage des 15–24 ans 21,9 % · <i>median age 30, youth unemployment 21.9 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:GenZ_212_demonstrations_in_Rabat_01.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/GenZ_212_demonstrations_in_Rabat_01.jpg?width=1280", "credit": "Mounir Neddi · CC BY-SA 4.0 · Wikimedia Commons", "caption": "« Stades ok, hôpitaux où ? »"}, "background": {"color": "#8a4512"}}, {"date": "29 oct. 2025 – 5 nov. 2025", "location": {"lat": -6.79, "lon": 39.21, "zoom": 6, "line": true}, "text": {"headline": "Tanzanie 2025 · Tanzanie", "text": "<p><b>Dates<\/b> : 29 oct. 2025 – 5 nov. 2025 (8 jours) · <i>Oct 29, 2025 – Nov 5, 2025<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Symbole<\/b> : 📵 Coupure d'Internet · <i>Internet shutdown<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 17 ans, chômage des 15–24 ans 2,4 % · <i>median age 17, youth unemployment 2.4 %<\/i><\/p>"}, "media": {"url": "", "credit": "", "caption": "Coupure d'Internet · Internet shutdown"}, "background": {"color": "#2b2d42"}}, {"date": "15 nov. 2025 – 15 déc. 2025", "location": {"lat": 19.43, "lon": -99.13, "zoom": 6, "line": true}, "text": {"headline": "Marche Génération Z · Mexique", "text": "<p><b>Dates<\/b> : 15 nov. 2025 – 15 déc. 2025 (31 jours) · <i>Nov 15, 2025 – Dec 15, 2025<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Symbole<\/b> : ☠ One Piece, sombreros<\/p><p><b>Famille de symbole<\/b> : Drapeau One Piece · <i>One Piece flag<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 30 ans, chômage des 15–24 ans 5,7 % · <i>median age 30, youth unemployment 5.7 %<\/i><\/p>"}, "media": {"url": "", "credit": "", "caption": "One Piece, sombreros"}, "background": {"color": "#2b2d42"}}, {"date": "26 nov. 2025 – 11 déc. 2025", "location": {"lat": 42.7, "lon": 23.32, "zoom": 6, "line": true}, "text": {"headline": "Bulgarie 2025 · Bulgarie", "text": "<p><b>Dates<\/b> : 26 nov. 2025 – 11 déc. 2025 (16 jours) · <i>Nov 26, 2025 – Dec 11, 2025<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Symbole<\/b> : ☠ One Piece<\/p><p><b>Famille de symbole<\/b> : Drapeau One Piece · <i>One Piece flag<\/i><\/p><p><b>Époque<\/b> : Vague Gen Z 2023–2025 · <i>Gen Z wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 45 ans, chômage des 15–24 ans 10,2 % · <i>median age 45, youth unemployment 10.2 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Bulgarian_protests_on_1_December_2025_(Cropped).png\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Bulgarian_protests_on_1_December_2025_(Cropped).png?width=1280", "credit": "Zerga (@Zerga) · CC BY 3.0 · Wikimedia Commons", "caption": "One Piece"}, "background": {"color": "#6e5600"}}, {"date": "16 janv. 2026 – 20 janv. 2026", "location": {"lat": 0.35, "lon": 32.58, "zoom": 6, "line": true}, "text": {"headline": "Ouganda 2026 · Ouganda", "text": "<p><b>Dates<\/b> : 16 janv. 2026 – 20 janv. 2026 (5 jours) · <i>Jan 16, 2026 – Jan 20, 2026<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Symbole<\/b> : 📵 Coupure d'Internet · <i>Internet shutdown<\/i><\/p><p><b>Époque<\/b> : Vague européenne 2026 · <i>European wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 17 ans, chômage des 15–24 ans 4,2 % · <i>median age 17, youth unemployment 4.2 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:2026_Ugandan_protests_(cropped).png\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/2026_Ugandan_protests_(cropped).png?width=1280", "credit": "Capital FM Kenya · CC BY 3.0 · Wikimedia Commons", "caption": "Coupure d'Internet · Internet shutdown"}, "background": {"color": "#2b2d42"}}, {"date": "1 mai 2026 – 31 mai 2026", "location": {"lat": -16.5, "lon": -68.15, "zoom": 6, "line": true}, "text": {"headline": "Bolivie 2026 · Bolivie", "text": "<p><b>Dates<\/b> : 1 mai 2026 – 31 mai 2026 (31 jours) · <i>May 1, 2026 – May 31, 2026<\/i><\/p><p><b>Issue<\/b> : concessions obtenues · <i>concessions won<\/i><\/p><p><b>Symbole<\/b> : ⛽ Blocages routiers · <i>Road blockades<\/i><\/p><p><b>Époque<\/b> : Vague européenne 2026 · <i>European wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 25 ans, chômage des 15–24 ans 5,0 % · <i>median age 25, youth unemployment 5.0 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Protestas_de_maestros_en_Bolivia_en_2026_03.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Protestas_de_maestros_en_Bolivia_en_2026_03.jpg?width=1280", "credit": "N1ny4 t · CC BY-SA 4.0 · Wikimedia Commons", "caption": "Blocages routiers · Road blockades"}, "background": {"color": "#8a4512"}}, {"date": "depuis le 23 mai 2026", "location": {"lat": 41.33, "lon": 19.82, "zoom": 6, "line": true}, "text": {"headline": "Révolution des flamants roses · Albanie", "text": "<p><b>Dates<\/b> : depuis le 23 mai 2026 (170 jours) · <i>since May 23, 2026<\/i><\/p><p><b>Issue<\/b> : en cours · <i>ongoing<\/i><\/p><p><b>Symbole<\/b> : 🦩 Flamants roses gonflables · <i>Inflatable flamingos<\/i><\/p><p><b>Slogan<\/b> : « Albania is not for sale »<\/p><p><b>Famille de symbole<\/b> : Contagion lycéenne · <i>High-school contagion<\/i><\/p><p><b>Époque<\/b> : Vague européenne 2026 · <i>European wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 37 ans, chômage des 15–24 ans 25,6 % · <i>median age 37, youth unemployment 25.6 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Flamingo_Revolution_Tirana_Protest_nr14_June_13_2026_05.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Flamingo_Revolution_Tirana_Protest_nr14_June_13_2026_05.jpg?width=1280", "credit": "Albinfo · CC BY 4.0 · Wikimedia Commons", "caption": "« Albania is not for sale »"}, "background": {"color": "#55287f"}}, {"date": "20 juin 2026 – 27 juil. 2026", "location": {"lat": 28.63, "lon": 77.22, "zoom": 6, "line": true}, "text": {"headline": "Cockroach Janta Party (NEET) · Inde", "text": "<p><b>Dates<\/b> : 20 juin 2026 – 27 juil. 2026 (38 jours) · <i>Jun 20, 2026 – Jul 27, 2026<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Symbole<\/b> : 🪳 Cafard, thali et cuillères · <i>Cockroach, plates and spoons<\/i><\/p><p><b>Époque<\/b> : Vague européenne 2026 · <i>European wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 29 ans, chômage des 15–24 ans 16,0 % · <i>median age 29, youth unemployment 16.0 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Cockroach_Janta_party.png\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Cockroach_Janta_party.png?width=1280", "credit": "SALlM BlN YOUSUF · CC BY 4.0 · Wikimedia Commons", "caption": "Cafard, thali et cuillères · Cockroach, plates and spoons"}, "background": {"color": "#6e5600"}}, {"date": "depuis le 18 sept. 2026", "location": {"lat": 48.79, "lon": 2.46, "zoom": 6, "line": true}, "text": {"headline": "Mouvement lycéen · France", "text": "<p><b>Dates<\/b> : depuis le 18 sept. 2026 (52 jours) · <i>since Sep 18, 2026<\/i><\/p><p><b>Issue<\/b> : en cours · <i>ongoing<\/i><\/p><p><b>Symbole<\/b> : 🎵 The Hanging Tree, One Piece, blocus · <i>The Hanging Tree, One Piece, blockades<\/i><\/p><p><b>Famille de symbole<\/b> : Drapeau One Piece · <i>One Piece flag<\/i>, Contagion lycéenne · <i>High-school contagion<\/i><\/p><p><b>Époque<\/b> : Vague européenne 2026 · <i>European wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 42 ans, chômage des 15–24 ans 18,9 % · <i>median age 42, youth unemployment 18.9 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Jules_Ferry_%C3%A0_Paris_manif_2_octobre_2026.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Jules_Ferry_%C3%A0_Paris_manif_2_octobre_2026.jpg?width=1280", "credit": "Guallendra · CC0 · Wikimedia Commons", "caption": "The Hanging Tree, One Piece, blocus · The Hanging Tree, One Piece, blockades"}, "background": {"color": "#55287f"}}, {"date": "depuis le 23 sept. 2026", "location": {"lat": 40.42, "lon": -3.7, "zoom": 6, "line": true}, "text": {"headline": "Ni una Maricarmen más · Espagne", "text": "<p><b>Dates<\/b> : depuis le 23 sept. 2026 (47 jours) · <i>since Sep 23, 2026<\/i><\/p><p><b>Issue<\/b> : en cours · <i>ongoing<\/i><\/p><p><b>Symbole<\/b> : ⛺ Campement de la Puerta del Sol · <i>Puerta del Sol camp<\/i><\/p><p><b>Slogan<\/b> : « Ni una Maricarmen más »<\/p><p><b>Époque<\/b> : Vague européenne 2026 · <i>European wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 46 ans, chômage des 15–24 ans 24,7 % · <i>median age 46, youth unemployment 24.7 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Concentraci%C3%B3_pel_Decreto_Maricarmen_20260928_06.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Concentraci%C3%B3_pel_Decreto_Maricarmen_20260928_06.jpg?width=1280", "credit": "Aniol · CC0 · Wikimedia Commons", "caption": "« Ni una Maricarmen más »"}, "background": {"color": "#55287f"}}, {"date": "depuis le 1 oct. 2026", "location": {"lat": 50.85, "lon": 4.35, "zoom": 6, "line": true}, "text": {"headline": "Blocus lycéens · Belgique", "text": "<p><b>Dates<\/b> : depuis le 1 oct. 2026 (39 jours) · <i>since Oct 1, 2026<\/i><\/p><p><b>Issue<\/b> : en cours · <i>ongoing<\/i><\/p><p><b>Symbole<\/b> : 🏫 Blocus de lycées · <i>School blockades<\/i><\/p><p><b>Famille de symbole<\/b> : Contagion lycéenne · <i>High-school contagion<\/i><\/p><p><b>Époque<\/b> : Vague européenne 2026 · <i>European wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 42 ans, chômage des 15–24 ans 17,8 % · <i>median age 42, youth unemployment 17.8 %<\/i><\/p>"}, "media": {"url": "", "credit": "", "caption": "Blocus de lycées · School blockades"}, "background": {"color": "#55287f"}}, {"date": "depuis le 13 oct. 2026", "location": {"lat": 37.98, "lon": 23.73, "zoom": 6, "line": true}, "text": {"headline": "Logement étudiant · Grèce", "text": "<p><b>Dates<\/b> : depuis le 13 oct. 2026 (27 jours) · <i>since Oct 13, 2026<\/i><\/p><p><b>Issue<\/b> : en cours · <i>ongoing<\/i><\/p><p><b>Symbole<\/b> : ⛺ Tentes place Syntagma · <i>Tents on Syntagma Square<\/i><\/p><p><b>Famille de symbole<\/b> : Contagion lycéenne · <i>High-school contagion<\/i><\/p><p><b>Époque<\/b> : Vague européenne 2026 · <i>European wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 47 ans, chômage des 15–24 ans 21,4 % · <i>median age 47, youth unemployment 21.4 %<\/i><\/p>"}, "media": {"url": "", "credit": "", "caption": "Tentes place Syntagma · Tents on Syntagma Square"}, "background": {"color": "#55287f"}}, {"date": "depuis le 16 oct. 2026", "location": {"lat": 41.9, "lon": 12.5, "zoom": 6, "line": true}, "text": {"headline": "No Meloni Day · Italie", "text": "<p><b>Dates<\/b> : depuis le 16 oct. 2026 (24 jours) · <i>since Oct 16, 2026<\/i><\/p><p><b>Issue<\/b> : en cours · <i>ongoing<\/i><\/p><p><b>Symbole<\/b> : 🏫 Occupations de lycées · <i>School occupations<\/i><\/p><p><b>Slogan<\/b> : « No Meloni Day »<\/p><p><b>Famille de symbole<\/b> : Contagion lycéenne · <i>High-school contagion<\/i><\/p><p><b>Époque<\/b> : Vague européenne 2026 · <i>European wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 48 ans, chômage des 15–24 ans 20,5 % · <i>median age 48, youth unemployment 20.5 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Manifestazione_%22No_Meloni_Day%22.png\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Manifestazione_%22No_Meloni_Day%22.png?width=1280", "credit": "GattoFurryPazzo · CC BY-SA 4.0 · Wikimedia Commons", "caption": "« No Meloni Day »"}, "background": {"color": "#55287f"}}, {"date": "depuis le 31 oct. 2026", "location": {"lat": 52.52, "lon": 13.4, "zoom": 6, "line": true}, "text": {"headline": "Gen Z regelt · Allemagne", "text": "<p><b>Dates<\/b> : depuis le 31 oct. 2026 (9 jours) · <i>since Oct 31, 2026<\/i><\/p><p><b>Issue<\/b> : en cours · <i>ongoing<\/i><\/p><p><b>Symbole<\/b> : 🪖 Contre la conscription · <i>Against conscription<\/i><\/p><p><b>Slogan<\/b> : « Gen Z regelt »<\/p><p><b>Famille de symbole<\/b> : Contagion lycéenne · <i>High-school contagion<\/i><\/p><p><b>Époque<\/b> : Vague européenne 2026 · <i>European wave<\/i><\/p><p><b>Contexte<\/b> : âge médian 45 ans, chômage des 15–24 ans 6,9 % · <i>median age 45, youth unemployment 6.9 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:120261031_160352_Gen_Z_regelt_Berlin.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/120261031_160352_Gen_Z_regelt_Berlin.jpg?width=1280", "credit": "Roy Zuo · CC BY-SA 4.0 · Wikimedia Commons", "caption": "« Gen Z regelt »"}, "background": {"color": "#55287f"}}, {"date": "2014–2021", "location": {"lat": 22.36, "lon": 114.2, "zoom": 4, "line": true}, "text": {"headline": "Symbole qui voyage : Milk Tea Alliance · <i>Travelling symbol: Milk Tea Alliance<\/i>", "text": "<p>Née en 2020 d'une querelle en ligne avec des internautes nationalistes chinois, l'« alliance du thé au lait » relie Hong Kong, Taïwan, la Thaïlande et le Myanmar : mêmes mèmes, salut à trois doigts, entraide numérique.<\/p><p><i>Born from a 2020 online spat, the Milk Tea Alliance links Hong Kong, Taiwan, Thailand and Myanmar.<\/i><\/p><p><b>Symboles &amp; slogans<\/b> · <i>Symbols &amp; slogans<\/i><\/p><ul><li><b>Mouvement des Tournesols<\/b> (Taïwan, 2014) : 🌻 Tournesols, Parlement occupé<\/li><li><b>Hong Kong 2019<\/b> (Hong Kong, 2019) : 💧 Be water, lasers, cônes – « Be water »<\/li><li><b>Manifestations thaïlandaises<\/b> (Thaïlande, 2020) : 🤟 Salut à 3 doigts, canards<\/li><li><b>Révolution du printemps<\/b> (Myanmar, 2021) : 🤟 Salut à 3 doigts, casseroles – « Everything will be OK »<\/li><\/ul><p><small>Foyer d'origine : Hong Kong 2019 · origin<\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Hong_Kong_anti-extradition_bill_protest_(48108527758).jpg?width=1280", "credit": "Studio Incendo · CC BY 2.0 · Wikimedia Commons", "caption": "Milk Tea Alliance · Milk Tea Alliance"}, "background": {"color": "#1f4f5c"}}, {"date": "2025–2026", "location": {"lat": -6.2, "lon": 106.85, "zoom": 4, "line": true}, "text": {"headline": "Symbole qui voyage : Drapeau One Piece · <i>Travelling symbol: One Piece flag<\/i>", "text": "<p>Le Jolly Roger au chapeau de paille du manga <i>One Piece<\/i> part d'Indonésie (août 2025), flotte à Katmandou, puis se coiffe d'un satroka à Madagascar, d'un chullo à Lima, d'un sombrero à Mexico…<\/p><p><i>The straw-hat Jolly Roger from the manga <i>One Piece<\/i> spread from Indonesia (Aug. 2025) to Nepal, Madagascar, Peru, Mexico, Bulgaria and France.<\/i><\/p><p><b>Symboles &amp; slogans<\/b> · <i>Symbols &amp; slogans<\/i><\/p><ul><li><b>Indonésie 2025<\/b> (Indonésie, 2025) : ☠ One Piece, Brave Pink / Hero Green<\/li><li><b>Révolte Gen Z du Népal<\/b> (Népal, 2025) : ☠ One Piece, PM choisie sur Discord – « #NepoKids »<\/li><li><b>Génération Z Pérou<\/b> (Pérou, 2025) : ☠ One Piece au chullo<\/li><li><b>Marche du trillion de pesos<\/b> (Philippines, 2025) : ☠ One Piece<\/li><li><b>Gen Z Madagascar<\/b> (Madagascar, 2025) : ☠ One Piece au chapeau satroka<\/li><li><b>Marche Génération Z<\/b> (Mexique, 2025) : ☠ One Piece, sombreros<\/li><li><b>Bulgarie 2025<\/b> (Bulgarie, 2025) : ☠ One Piece<\/li><li><b>Mouvement lycéen<\/b> (France, 2026) : 🎵 The Hanging Tree, One Piece, blocus<\/li><\/ul><p><small>Foyer d'origine : Jakarta · origin<\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/2025_Indonesia_Gelap_protests_21_February_(cropped).jpg?width=1280", "credit": "David Wadie Fisher-Freberg · CC BY-SA 4.0 · Wikimedia Commons", "caption": "Drapeau One Piece · One Piece flag"}, "background": {"color": "#1f4f5c"}}, {"date": "2025–2025", "location": {"lat": 27.71, "lon": 85.32, "zoom": 4, "line": true}, "text": {"headline": "Symbole qui voyage : Organisation sur Discord · <i>Travelling symbol: Organised on Discord<\/i>", "text": "<p>Au Népal, une Première ministre intérimaire est choisie par un vote sur un serveur Discord (sept. 2025). Le modèle est repris par GenZ 212 au Maroc et à Madagascar.<\/p><p><i>In Nepal an interim PM was picked through a Discord poll (Sept. 2025); Morocco's GenZ 212 and Madagascar followed.<\/i><\/p><p><b>Symboles &amp; slogans<\/b> · <i>Symbols &amp; slogans<\/i><\/p><ul><li><b>Révolte Gen Z du Népal<\/b> (Népal, 2025) : ☠ One Piece, PM choisie sur Discord – « #NepoKids »<\/li><li><b>Gen Z Madagascar<\/b> (Madagascar, 2025) : ☠ One Piece au chapeau satroka<\/li><li><b>GenZ 212<\/b> (Maroc, 2025) : 🏥 Discord, stades vs hôpitaux – « Stades ok, hôpitaux où ? »<\/li><\/ul><p><small>Foyer d'origine : Katmandou · origin<\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/2025_Nepalese_Gen_Z_protesters_infront_of_Bharatpur_mahanagarpalika_office.jpg?width=1280", "credit": "हिमाल सुवेदी · CC BY-SA 4.0 · Wikimedia Commons", "caption": "Organisation sur Discord · Organised on Discord"}, "background": {"color": "#1f4f5c"}}, {"date": "2026–2026", "location": {"lat": 48.79, "lon": 2.46, "zoom": 4, "line": true}, "text": {"headline": "Symbole qui voyage : Contagion lycéenne · <i>Travelling symbol: High-school contagion<\/i>", "text": "<p>À l'automne 2026, les blocus des lycées français essaiment : Bruxelles, Rome, Berlin, Athènes, Tirana.<\/p><p><i>In autumn 2026, French high-school blockades spread to Brussels, Rome, Berlin, Athens and Tirana.<\/i><\/p><p><b>Symboles &amp; slogans<\/b> · <i>Symbols &amp; slogans<\/i><\/p><ul><li><b>Révolution des flamants roses<\/b> (Albanie, 2026) : 🦩 Flamants roses gonflables – « Albania is not for sale »<\/li><li><b>Mouvement lycéen<\/b> (France, 2026) : 🎵 The Hanging Tree, One Piece, blocus<\/li><li><b>Blocus lycéens<\/b> (Belgique, 2026) : 🏫 Blocus de lycées<\/li><li><b>Logement étudiant<\/b> (Grèce, 2026) : ⛺ Tentes place Syntagma<\/li><li><b>No Meloni Day<\/b> (Italie, 2026) : 🏫 Occupations de lycées – « No Meloni Day »<\/li><li><b>Gen Z regelt<\/b> (Allemagne, 2026) : 🪖 Contre la conscription – « Gen Z regelt »<\/li><\/ul><p><small>Foyer d'origine : Créteil · origin<\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Jules_Ferry_%C3%A0_Paris_manif_2_octobre_2026.jpg?width=1280", "credit": "Guallendra · CC0 · Wikimedia Commons", "caption": "Contagion lycéenne · High-school contagion"}, "background": {"color": "#1f4f5c"}}, {"date": "2023–2026", "location": {"lat": 25, "lon": 20, "zoom": 2, "line": true}, "text": {"headline": "Cas limites (12) · <i>Borderline cases<\/i>", "text": "<p>Des mobilisations où la jeunesse était très présente sans que le mouvement soit spécifiquement « Gen Z » (intergénérationnel, syndical, campus, crise économique…). Laissées en gris sur la carte, hors des statistiques.<\/p><p><i>Protests with a strong youth presence but not specifically “Gen Z”; shown in grey, excluded from the statistics.<\/i><\/p><ul><li>2023 · <b>Émeutes après la condamnation de Sonko<\/b> (Sénégal)<\/li><li>2023 · <b>Émeutes après la mort de Nahel<\/b> (France)<\/li><li>2024 · <b>Campements pour Gaza<\/b> (États-Unis (campus))<\/li><li>2024 · <b>Révolution des lightsticks<\/b> (Corée du Sud)<\/li><li>2025 · <b>Togo 2025<\/b> (Togo)<\/li><li>2025 · <b>Bloquons tout<\/b> (France)<\/li><li>2025 · <b>Grèves pour Gaza<\/b> (Italie)<\/li><li>2025 · <b>Maldives 2025<\/b> (Maldives)<\/li><li>2025 · <b>Paraguay 2025<\/b> (Paraguay)<\/li><li>2025 · <b>Azad Cachemire 2025<\/b> (Pakistan (Azad Cachemire))<\/li><li>2025 · <b>Cameroun 2025<\/b> (Cameroun)<\/li><li>2025 · <b>Iran 2025-2026<\/b> (Iran)<\/li><\/ul>"}, "media": {"url": "", "credit": "", "caption": ""}, "background": {"color": "#5a5a5a"}}, {"date": "1 juin 2023 – 3 juin 2023", "location": {"lat": 14.69, "lon": -17.44, "zoom": 6, "line": true}, "text": {"headline": "Cas limite · Émeutes après la condamnation de Sonko · Sénégal", "text": "<p><b>Cas limite<\/b> · <i>borderline case<\/i><\/p><p><b>Dates<\/b> : 1 juin 2023 – 3 juin 2023 · <i>Jun 1, 2023 – Jun 3, 2023<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Pourquoi limite<\/b> : Condamnation de l'opposant Sonko · <i>Conviction of opposition leader Sonko<\/i><\/p><p><b>Contexte<\/b> : âge médian 20 ans, chômage des 15–24 ans 3,6 % · <i>median age 20, youth unemployment 3.6 %<\/i><\/p>"}, "media": {"url": "", "credit": "", "caption": "Cas limite · 2023 Senegalese protests"}, "background": {"color": "#5a5a5a"}}, {"date": "27 juin 2023 – 5 juil. 2023", "location": {"lat": 48.89, "lon": 2.21, "zoom": 6, "line": true}, "text": {"headline": "Cas limite · Émeutes après la mort de Nahel · France", "text": "<p><b>Cas limite<\/b> · <i>borderline case<\/i><\/p><p><b>Dates<\/b> : 27 juin 2023 – 5 juil. 2023 · <i>Jun 27, 2023 – Jul 5, 2023<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Pourquoi limite<\/b> : Violences policières, banlieues · <i>Police violence, suburbs<\/i><\/p><p><b>Contexte<\/b> : âge médian 42 ans, chômage des 15–24 ans 18,9 % · <i>median age 42, youth unemployment 18.9 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Violences_urbaines_Nahel_Besan%C3%A7on-Planoise_29-06-2023_oufik-de-Planoise_1.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Violences_urbaines_Nahel_Besan%C3%A7on-Planoise_29-06-2023_oufik-de-Planoise_1.jpg?width=1280", "credit": "Toufik-de-Planoise · CC BY-SA 4.0 · Wikimedia Commons", "caption": "Cas limite · Nahel Merzouk riots"}, "background": {"color": "#5a5a5a"}}, {"date": "17 avr. 2024 – 31 mai 2024", "location": {"lat": 40.81, "lon": -73.96, "zoom": 6, "line": true}, "text": {"headline": "Cas limite · Campements pour Gaza · États-Unis (campus)", "text": "<p><b>Cas limite<\/b> · <i>borderline case<\/i><\/p><p><b>Dates<\/b> : 17 avr. 2024 – 31 mai 2024 · <i>Apr 17, 2024 – May 31, 2024<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Pourquoi limite<\/b> : Campus · <i>Campuses<\/i><\/p><p><b>Contexte<\/b> : âge médian 39 ans, chômage des 15–24 ans 9,3 % · <i>median age 39, youth unemployment 9.3 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:%22Liberated_Zone,%22_Columbia_University,_April_17.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/%22Liberated_Zone,%22_Columbia_University,_April_17.jpg?width=1280", "credit": "Wm3214 · CC0 · Wikimedia Commons", "caption": "Cas limite · Gaza campus encampments"}, "background": {"color": "#5a5a5a"}}, {"date": "3 déc. 2024 – 4 avr. 2025", "location": {"lat": 37.57, "lon": 126.98, "zoom": 6, "line": true}, "text": {"headline": "Cas limite · Révolution des lightsticks · Corée du Sud", "text": "<p><b>Cas limite<\/b> · <i>borderline case<\/i><\/p><p><b>Dates<\/b> : 3 déc. 2024 – 4 avr. 2025 · <i>Dec 3, 2024 – Apr 4, 2025<\/i><\/p><p><b>Issue<\/b> : victoire · <i>won<\/i><\/p><p><b>Pourquoi limite<\/b> : Lightsticks K-pop · <i>K-pop lightsticks<\/i><\/p><p><b>Contexte<\/b> : âge médian 46 ans, chômage des 15–24 ans 6,7 % · <i>median age 46, youth unemployment 6.7 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:2024%EB%85%84_%EB%8C%80%ED%95%9C%EB%AF%BC%EA%B5%AD_%EA%B3%84%EC%97%84_%EB%B0%98%EB%8C%80_%EC%8B%9C%EC%9C%84%EB%8C%80_%EA%B9%83%EB%B0%9C.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/2024%EB%85%84_%EB%8C%80%ED%95%9C%EB%AF%BC%EA%B5%AD_%EA%B3%84%EC%97%84_%EB%B0%98%EB%8C%80_%EC%8B%9C%EC%9C%84%EB%8C%80_%EA%B9%83%EB%B0%9C.jpg?width=1280", "credit": "Hashflu · CC BY-SA 4.0 · Wikimedia Commons", "caption": "Cas limite · Lightstick protests"}, "background": {"color": "#5a5a5a"}}, {"date": "6 juin 2025 – 30 juin 2025", "location": {"lat": 6.13, "lon": 1.22, "zoom": 6, "line": true}, "text": {"headline": "Cas limite · Togo 2025 · Togo", "text": "<p><b>Cas limite<\/b> · <i>borderline case<\/i><\/p><p><b>Dates<\/b> : 6 juin 2025 – 30 juin 2025 · <i>Jun 6, 2025 – Jun 30, 2025<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Contexte<\/b> : âge médian 18 ans, chômage des 15–24 ans 3,4 % · <i>median age 18, youth unemployment 3.4 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Gen_Z_Protests_of_Togo_in_September_2,_2025.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Gen_Z_Protests_of_Togo_in_September_2,_2025.jpg?width=1280", "credit": "Pascal Van · CC BY-SA 2.5 · Wikimedia Commons", "caption": "Cas limite · 2025 Togolese protests"}, "background": {"color": "#5a5a5a"}}, {"date": "10 sept. 2025 – 10 oct. 2025", "location": {"lat": 48.86, "lon": 2.35, "zoom": 6, "line": true}, "text": {"headline": "Cas limite · Bloquons tout · France", "text": "<p><b>Cas limite<\/b> · <i>borderline case<\/i><\/p><p><b>Dates<\/b> : 10 sept. 2025 – 10 oct. 2025 · <i>Sep 10, 2025 – Oct 10, 2025<\/i><\/p><p><b>Issue<\/b> : concessions obtenues · <i>concessions won<\/i><\/p><p><b>Pourquoi limite<\/b> : Intergénérationnel · <i>Intergenerational<\/i><\/p><p><b>Slogan<\/b> : « Bloquons tout »<\/p><p><b>Contexte<\/b> : âge médian 42 ans, chômage des 15–24 ans 18,9 % · <i>median age 42, youth unemployment 18.9 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:Bloquons_tout_protests_(10_September_2025)_3.png\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/Bloquons_tout_protests_(10_September_2025)_3.png?width=1280", "credit": "Hervé Germain @hervegermain4116 · CC BY 3.0 · Wikimedia Commons", "caption": "« Bloquons tout »"}, "background": {"color": "#5a5a5a"}}, {"date": "19 sept. 2025 – 31 oct. 2025", "location": {"lat": 45.46, "lon": 9.19, "zoom": 6, "line": true}, "text": {"headline": "Cas limite · Grèves pour Gaza · Italie", "text": "<p><b>Cas limite<\/b> · <i>borderline case<\/i><\/p><p><b>Dates<\/b> : 19 sept. 2025 – 31 oct. 2025 · <i>Sep 19, 2025 – Oct 31, 2025<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Pourquoi limite<\/b> : Syndicats · <i>Trade unions<\/i><\/p><p><b>Slogan<\/b> : « Blocchiamo tutto »<\/p><p><b>Contexte<\/b> : âge médian 48 ans, chômage des 15–24 ans 20,5 % · <i>median age 48, youth unemployment 20.5 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:22_September_2025_Italian_general_strike_for_Gaza.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/22_September_2025_Italian_general_strike_for_Gaza.jpg?width=1280", "credit": "Ukrain4Pal · CC BY 4.0 · Wikimedia Commons", "caption": "« Blocchiamo tutto »"}, "background": {"color": "#5a5a5a"}}, {"date": "20 sept. 2025 – 15 oct. 2025", "location": {"lat": 4.17, "lon": 73.51, "zoom": 6, "line": true}, "text": {"headline": "Cas limite · Maldives 2025 · Maldives", "text": "<p><b>Cas limite<\/b> · <i>borderline case<\/i><\/p><p><b>Dates<\/b> : 20 sept. 2025 – 15 oct. 2025 · <i>Sep 20, 2025 – Oct 15, 2025<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Contexte<\/b> : âge médian 33 ans, chômage des 15–24 ans 15,7 % · <i>median age 33, youth unemployment 15.7 %<\/i><\/p>"}, "media": {"url": "", "credit": "", "caption": "Cas limite · 2025 Maldives protests"}, "background": {"color": "#5a5a5a"}}, {"date": "28 sept. 2025 – 15 oct. 2025", "location": {"lat": -25.26, "lon": -57.58, "zoom": 6, "line": true}, "text": {"headline": "Cas limite · Paraguay 2025 · Paraguay", "text": "<p><b>Cas limite<\/b> · <i>borderline case<\/i><\/p><p><b>Dates<\/b> : 28 sept. 2025 – 15 oct. 2025 · <i>Sep 28, 2025 – Oct 15, 2025<\/i><\/p><p><b>Issue<\/b> : concessions obtenues · <i>concessions won<\/i><\/p><p><b>Contexte<\/b> : âge médian 27 ans, chômage des 15–24 ans 11,7 % · <i>median age 27, youth unemployment 11.7 %<\/i><\/p>"}, "media": {"url": "", "credit": "", "caption": "Cas limite · 2025 Paraguay protests"}, "background": {"color": "#5a5a5a"}}, {"date": "29 sept. 2025 – 4 oct. 2025", "location": {"lat": 34.37, "lon": 73.47, "zoom": 6, "line": true}, "text": {"headline": "Cas limite · Azad Cachemire 2025 · Pakistan (Azad Cachemire)", "text": "<p><b>Cas limite<\/b> · <i>borderline case<\/i><\/p><p><b>Dates<\/b> : 29 sept. 2025 – 4 oct. 2025 · <i>Sep 29, 2025 – Oct 4, 2025<\/i><\/p><p><b>Issue<\/b> : concessions obtenues · <i>concessions won<\/i><\/p><p><b>Contexte<\/b> : âge médian 21 ans, chômage des 15–24 ans 9,6 % · <i>median age 21, youth unemployment 9.6 %<\/i><\/p>"}, "media": {"url": "", "credit": "", "caption": "Cas limite · 2025 Azad Kashmir protests"}, "background": {"color": "#5a5a5a"}}, {"date": "12 oct. 2025 – 15 nov. 2025", "location": {"lat": 4.05, "lon": 9.7, "zoom": 6, "line": true}, "text": {"headline": "Cas limite · Cameroun 2025 · Cameroun", "text": "<p><b>Cas limite<\/b> · <i>borderline case<\/i><\/p><p><b>Dates<\/b> : 12 oct. 2025 – 15 nov. 2025 · <i>Oct 12, 2025 – Nov 15, 2025<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Contexte<\/b> : âge médian 18 ans, chômage des 15–24 ans 6,5 % · <i>median age 18, youth unemployment 6.5 %<\/i><\/p>"}, "media": {"url": "", "credit": "", "caption": "Cas limite · 2025 Cameroon protests"}, "background": {"color": "#5a5a5a"}}, {"date": "28 déc. 2025 – 31 mars 2026", "location": {"lat": 35.8, "lon": 51.6, "zoom": 6, "line": true}, "text": {"headline": "Cas limite · Iran 2025-2026 · Iran", "text": "<p><b>Cas limite<\/b> · <i>borderline case<\/i><\/p><p><b>Dates<\/b> : 28 déc. 2025 – 31 mars 2026 · <i>Dec 28, 2025 – Mar 31, 2026<\/i><\/p><p><b>Issue<\/b> : réprimé · <i>crushed<\/i><\/p><p><b>Pourquoi limite<\/b> : Crise économique · <i>Economic crisis<\/i><\/p><p><b>Contexte<\/b> : âge médian 34 ans, chômage des 15–24 ans 21,9 % · <i>median age 34, youth unemployment 21.9 %<\/i><\/p><p><small>Photo : <a href=\"https://commons.wikimedia.org/wiki/File:2026_protests_in_Neyshabur.jpg\" target=\"_blank\">page Wikimedia Commons<\/a><\/small><\/p>"}, "media": {"url": "https://commons.wikimedia.org/wiki/Special:FilePath/2026_protests_in_Neyshabur.jpg?width=1280", "credit": "ماشین باز · CC0 · Wikimedia Commons", "caption": "Cas limite · 2025–2026 Iranian protests"}, "background": {"color": "#5a5a5a"}}, {"date": "2014–2026", "location": {"lat": 20, "lon": 20, "zoom": 2, "line": true}, "text": {"headline": "Et ça marche ? · <i>Does it work?<\/i>", "text": "<p>Sur les 38 mouvements : 32 % ont fait tomber un gouvernement ou obtenu ce qu'ils demandaient, 24 % ont arraché des concessions, 24 % ont été écrasés et 21 % sont encore en cours.<\/p><ul><li><b>2014–2018 · Précurseurs<\/b> : 5 mouvements, <b>80 %<\/b> victoire ou concession (3 V, 1 C, 1 R, 0 en cours)<\/li><li><b>2019–2023 · 1re vague numérique<\/b> : 8 mouvements, <b>50 %<\/b> victoire ou concession (2 V, 2 C, 4 R, 0 en cours)<\/li><li><b>2023–2025 · Vague Gen Z<\/b> : 15 mouvements, <b>73 %<\/b> victoire ou concession (6 V, 5 C, 3 R, 1 en cours)<\/li><li><b>2026 · Vague européenne<\/b> : 10 mouvements, <b>20 %<\/b> victoire ou concession (1 V, 1 C, 1 R, 7 en cours)<\/li><li><b>2014–2026 · Total<\/b> : 38 mouvements, <b>55 %<\/b> victoire ou concession (12 V, 9 C, 9 R, 8 en cours)<\/li><\/ul><p>Les précurseurs ne comptent que 5 mouvements ; la vague 2019–2023 voit Hong Kong, la Thaïlande, le Myanmar et l'Iran réprimés ; puis tout s'accélère en 2023–2025. En 2026, 7 mouvements sur 10 sont encore en cours (2 succès sur 3 issues connues).<\/p><p><i>Of 38 movements: 32 % won, 24 % won concessions, 24 % were crushed, 21 % are ongoing. Success rate by period: 2014–2018 80 %, 2019–2023 50 %, 2023–2025 73 %, 2026 20 %.<\/i><\/p><p><small>Recalculé sur le CSV (cas limites exclus), état au 8 nov. 2026.<\/small><\/p>"}, "media": {"url": "taux_reussite_epoques.png", "credit": "Graphique matplotlib · CC BY-SA 4.0", "caption": "Victoire ou concessions par époque · won or conceded, by period"}, "background": {"color": "#33364d"}}, {"date": "", "location": {"lat": 20, "lon": 20, "zoom": 2, "line": true}, "text": {"headline": "Sources et licences · <i>Sources &amp; licences<\/i>", "text": "<p><b>Données<\/b> : Wikipédia, presse internationale, ONG (HRW, Amnesty, FIDH) ; âge médian ONU WPP 2024 (via OWID) ; chômage des 15–24 ans OIT via Banque mondiale (2025), Taïwan DGBAS, Kosovo KAS. Pour aller plus loin : <a href=\"https://theconversation.com/topics/gen-z-protests-175785\" target=\"_blank\">dossier The Conversation<\/a>.<\/p><p><b>Fond de carte<\/b> : © contributeurs OpenStreetMap (ODbL). <b>Outil<\/b> : StoryMapJS, Knight Lab.<\/p><p><b>Photos<\/b> : Wikimedia Commons, licences libres (CC BY, CC BY-SA, domaine public) ; auteur et licence de chaque photo dans son crédit et ci-dessous. Les photos CC BY-SA restent sous CC BY-SA.<\/p><ul><li>Mouvement des Tournesols : <a href=\"https://commons.wikimedia.org/wiki/File:Sunflower_Movement_collage.jpg\" target=\"_blank\">KOKUYO合併<\/a>, CC BY-SA 3.0<\/li><li>Révolte des parapluies : <a href=\"https://commons.wikimedia.org/wiki/File:Hong_Kong_Umbrella_Revolution_-umbrellarevolution_-UmbrellaMovement_(15292823874)_(cropped).jpg\" target=\"_blank\">auteur sur la page Commons<\/a>, CC BY 2.0<\/li><li>Grèves pour le climat : <a href=\"https://commons.wikimedia.org/wiki/File:Mani_rosse_sulla_borsa_-_Fridays_for_Future_pre-COP26_Milano,_Lombardy,_Italy_-_2021-10-01.jpg\" target=\"_blank\">Mænsard vokser<\/a>, CC BY-SA 4.0<\/li><li>Révolution soudanaise : <a href=\"https://commons.wikimedia.org/wiki/File:Sudanese_protestors_celebrate_signing_of_political_agreement.png\" target=\"_blank\">VOA<\/a>, Public domain<\/li><li>Hong Kong 2019 : <a href=\"https://commons.wikimedia.org/wiki/File:Hong_Kong_anti-extradition_bill_protest_(48108527758).jpg\" target=\"_blank\">Studio Incendo<\/a>, CC BY 2.0<\/li><li>Estallido social : <a href=\"https://commons.wikimedia.org/wiki/File:Marcha_Mas_Grande_De_Chile_2019_Plaza_Baquedano_Drone.jpg\" target=\"_blank\">Hugo Morales<\/a>, CC BY-SA 4.0<\/li><li>Manifestations thaïlandaises : <a href=\"https://commons.wikimedia.org/wiki/File:Protest_in_2020_Democracy_Monument_(I).jpg\" target=\"_blank\">This Photo was taken by Supanut Arunoprayote. Feel free to use any of my images, but please mention me as the author and<\/a>, CC BY 4.0<\/li><li>#EndSARS : <a href=\"https://commons.wikimedia.org/wiki/File:Protest_against_police_brutality_in_Nigeria.jpg\" target=\"_blank\">TobiJamesCandids<\/a>, CC BY-SA 4.0<\/li><li>Révolution du printemps : <a href=\"https://commons.wikimedia.org/wiki/File:2021_Myanmar_Protest_in_Hleden.jpg\" target=\"_blank\">VOA Burmese<\/a>, Public domain<\/li><li>Aragalaya : <a href=\"https://commons.wikimedia.org/wiki/File:Anti-government_protest_in_Sri_Lanka_2022.jpg\" target=\"_blank\">AntanO<\/a>, CC BY-SA 4.0<\/li><li>Femme, Vie, Liberté : <a href=\"https://commons.wikimedia.org/wiki/File:Amir_Kabir_University_uprising_September_2022_(3).jpg\" target=\"_blank\">Darafsh<\/a>, CC BY-SA 4.0<\/li><li>Loi sur les agents de l'étranger : <a href=\"https://commons.wikimedia.org/wiki/File:8_march_protest_in_Tbilisi_(cropped).jpg\" target=\"_blank\">DerFuchs<\/a>, CC BY-SA 4.0<\/li><li>#RejectFinanceBill : <a href=\"https://commons.wikimedia.org/wiki/File:Kenya_2024_protests_(21).jpg\" target=\"_blank\">Capital FM Kenya<\/a>, CC BY 3.0<\/li><li>Révolution de juillet : <a href=\"https://commons.wikimedia.org/wiki/File:7.Bangladesh_quota_reform_movement_2024.jpg\" target=\"_blank\">Rayhan Ahmed<\/a>, CC BY-SA 4.0<\/li><li>Mouvement étudiant serbe : <a href=\"https://commons.wikimedia.org/wiki/File:Protest_Trg_Slavija_22._dec_VOA.jpg\" target=\"_blank\">Stefan Miljuš<\/a>, Public domain<\/li><li>Manifestations pro-UE : <a href=\"https://commons.wikimedia.org/wiki/File:Tbilisi_-_election_protests_28_October_2024.jpg\" target=\"_blank\">Jelger Groeneveld<\/a>, CC BY 2.0<\/li><li>Indonésie 2025 : <a href=\"https://commons.wikimedia.org/wiki/File:2025_Indonesia_Gelap_protests_21_February_(cropped).jpg\" target=\"_blank\">David Wadie Fisher-Freberg<\/a>, CC BY-SA 4.0<\/li><li>Révolte Gen Z du Népal : <a href=\"https://commons.wikimedia.org/wiki/File:2025_Nepalese_Gen_Z_protesters_infront_of_Bharatpur_mahanagarpalika_office.jpg\" target=\"_blank\">हिमाल सुवेदी<\/a>, CC BY-SA 4.0<\/li><li>Génération Z Pérou : <a href=\"https://commons.wikimedia.org/wiki/File:Bandera_en_protestas.jpg\" target=\"_blank\">Futuropopular<\/a>, CC BY-SA 4.0<\/li><li>Timor oriental 2025 : <a href=\"https://commons.wikimedia.org/wiki/File:MPL08030.jpg\" target=\"_blank\">Maugulo<\/a>, CC BY 4.0<\/li><li>Marche du trillion de pesos : <a href=\"https://commons.wikimedia.org/wiki/File:Smokes,_fire_and_a_flag.jpg\" target=\"_blank\">Cyberneticboylol<\/a>, CC BY-SA 4.0<\/li><li>Gen Z Madagascar : <a href=\"https://commons.wikimedia.org/wiki/File:Roadblock_in_Antananarivo_during_Gen_Z_protests.jpg\" target=\"_blank\">Raveloaritiana Mamisoa<\/a>, CC BY-SA 4.0<\/li><li>GenZ 212 : <a href=\"https://commons.wikimedia.org/wiki/File:GenZ_212_demonstrations_in_Rabat_01.jpg\" target=\"_blank\">Mounir Neddi<\/a>, CC BY-SA 4.0<\/li><li>Bulgarie 2025 : <a href=\"https://commons.wikimedia.org/wiki/File:Bulgarian_protests_on_1_December_2025_(Cropped).png\" target=\"_blank\">Zerga (@Zerga)<\/a>, CC BY 3.0<\/li><li>Ouganda 2026 : <a href=\"https://commons.wikimedia.org/wiki/File:2026_Ugandan_protests_(cropped).png\" target=\"_blank\">Capital FM Kenya<\/a>, CC BY 3.0<\/li><li>Bolivie 2026 : <a href=\"https://commons.wikimedia.org/wiki/File:Protestas_de_maestros_en_Bolivia_en_2026_03.jpg\" target=\"_blank\">N1ny4 t<\/a>, CC BY-SA 4.0<\/li><li>Révolution des flamants roses : <a href=\"https://commons.wikimedia.org/wiki/File:Flamingo_Revolution_Tirana_Protest_nr14_June_13_2026_05.jpg\" target=\"_blank\">Albinfo<\/a>, CC BY 4.0<\/li><li>Cockroach Janta Party (NEET) : <a href=\"https://commons.wikimedia.org/wiki/File:Cockroach_Janta_party.png\" target=\"_blank\">SALlM BlN YOUSUF<\/a>, CC BY 4.0<\/li><li>Mouvement lycéen : <a href=\"https://commons.wikimedia.org/wiki/File:Jules_Ferry_%C3%A0_Paris_manif_2_octobre_2026.jpg\" target=\"_blank\">Guallendra<\/a>, CC0<\/li><li>Ni una Maricarmen más : <a href=\"https://commons.wikimedia.org/wiki/File:Concentraci%C3%B3_pel_Decreto_Maricarmen_20260928_06.jpg\" target=\"_blank\">Aniol<\/a>, CC0<\/li><li>No Meloni Day : <a href=\"https://commons.wikimedia.org/wiki/File:Manifestazione_%22No_Meloni_Day%22.png\" target=\"_blank\">GattoFurryPazzo<\/a>, CC BY-SA 4.0<\/li><li>Gen Z regelt : <a href=\"https://commons.wikimedia.org/wiki/File:120261031_160352_Gen_Z_regelt_Berlin.jpg\" target=\"_blank\">Roy Zuo<\/a>, CC BY-SA 4.0<\/li><li>Émeutes après la mort de Nahel : <a href=\"https://commons.wikimedia.org/wiki/File:Violences_urbaines_Nahel_Besan%C3%A7on-Planoise_29-06-2023_oufik-de-Planoise_1.jpg\" target=\"_blank\">Toufik-de-Planoise<\/a>, CC BY-SA 4.0<\/li><li>Campements pour Gaza : <a href=\"https://commons.wikimedia.org/wiki/File:%22Liberated_Zone,%22_Columbia_University,_April_17.jpg\" target=\"_blank\">Wm3214<\/a>, CC0<\/li><li>Révolution des lightsticks : <a href=\"https://commons.wikimedia.org/wiki/File:2024%EB%85%84_%EB%8C%80%ED%95%9C%EB%AF%BC%EA%B5%AD_%EA%B3%84%EC%97%84_%EB%B0%98%EB%8C%80_%EC%8B%9C%EC%9C%84%EB%8C%80_%EA%B9%83%EB%B0%9C.jpg\" target=\"_blank\">Hashflu<\/a>, CC BY-SA 4.0<\/li><li>Togo 2025 : <a href=\"https://commons.wikimedia.org/wiki/File:Gen_Z_Protests_of_Togo_in_September_2,_2025.jpg\" target=\"_blank\">Pascal Van<\/a>, CC BY-SA 2.5<\/li><li>Bloquons tout : <a href=\"https://commons.wikimedia.org/wiki/File:Bloquons_tout_protests_(10_September_2025)_3.png\" target=\"_blank\">Hervé Germain @hervegermain4116<\/a>, CC BY 3.0<\/li><li>Grèves pour Gaza : <a href=\"https://commons.wikimedia.org/wiki/File:22_September_2025_Italian_general_strike_for_Gaza.jpg\" target=\"_blank\">Ukrain4Pal<\/a>, CC BY 4.0<\/li><li>Iran 2025-2026 : <a href=\"https://commons.wikimedia.org/wiki/File:2026_protests_in_Neyshabur.jpg\" target=\"_blank\">ماشین باز<\/a>, CC0<\/li><\/ul><p><small>Carte, frise et textes : Estelle Sérèmes, CC BY-SA 4.0 · #30DayMapChallenge 2026 · Next Generation Cartographers<\/small><\/p>"}, "media": {"url": "", "credit": "", "caption": ""}, "background": {"color": "#33364d"}}]}}</script>
+<div id="bulle"></div>
+<div id="visionneuse" role="dialog" aria-modal="true" aria-label="Image en plein écran">
+  <div class="outils">
+    <button type="button" data-z="1.4" title="Zoomer" aria-label="Zoomer">+</button>
+    <button type="button" data-z="0.71" title="Dézoomer" aria-label="Dézoomer">−</button>
+    <button type="button" data-z="0" title="Ajuster à l'écran" aria-label="Ajuster à l'écran">⤢</button>
+    <button type="button" data-fermer title="Fermer (Échap)" aria-label="Fermer">✕</button>
+  </div>
+  <img alt="">
+  <div class="legende-img"></div>
+</div>
 <script>
-  var options = { language: "fr", map_type: "osm:standard", calculate_zoom: false };
-  var Classe = window.KLStoryMap ? KLStoryMap.StoryMap : VCO.StoryMap;
-  function lancer(data) { window.storymap = new Classe("mapdiv", data, options);
+(function () {
+  "use strict";
+  var MOBILE = window.innerWidth < 700;
+  var storymap, carte, D, coucheAplats = null, coucheLignes = null, coucheRappels = null;
+  var ronds = [], rondsParSlide = {}, slideCourante = -1;
+  var bulle = document.getElementById("bulle");
+  var echap = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var sansAccent = function (s) { return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); };
+  var json = function (u) { return fetch(u, { cache: "no-cache" }).then(function (r) { if (!r.ok) throw new Error(u + " : " + r.status); return r.json(); }); };
+
+  Promise.all([json("storymap_genz_v2.json"), json("genz_v2_donnees.json")]).then(function (res) {
+    D = res[1];
+    normaliserPictos();
+    var Classe = window.KLStoryMap ? KLStoryMap.StoryMap : VCO.StoryMap;
+    var depart = parseInt(new URLSearchParams(location.search).get("diapo"), 10);   // ?diapo=12 ouvre la 12e diapositive
+    storymap = new Classe("mapdiv", res[0], { language: "fr", map_type: "osm:standard", calculate_zoom: false,
+                                              show_lines: false, show_history_line: false });
+    window.genzDepart = isNaN(depart) ? 0 : depart;
+    // clic dans les graphiques interactifs (iframes de la même origine) : ouvrir la diapositive du mouvement
+    window.addEventListener("message", function (e) {
+      if (e.origin === location.origin && e.data && e.data.genz === "aller") allerA(e.data.slide);
+    });
+    window.storymap = storymap;
     window.addEventListener("resize", function () { storymap.updateDisplay(); });
-    // la feuille de style arrive parfois après l'initialisation : on recalcule la mise en page
-    [300, 1200, 3000].forEach(function (t) { setTimeout(function () { storymap.updateDisplay(); }, t); }); }
-  fetch("storymap_genz.json").then(function (r) { if (!r.ok) throw r; return r.json(); })
-    .then(lancer)
-    .catch(function () { lancer(JSON.parse(document.getElementById("donnees").textContent)); });
+    recalerMiseEnPage();
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) recalerMiseEnPage(); });
+    preparerNavigation();
+    preparerVisionneuse();
+    attendreCarte();
+  }).catch(function (e) {
+    document.getElementById("mapdiv").innerHTML = '<p style="padding:16px">Impossible de charger les données (' + echap(e.message) +
+      '). Ouvrez la page via un serveur web (GitHub Pages ou <code>py -m http.server</code>), pas en double-clic.</p>';
+  });
+
+  // la feuille de style de StoryMapJS arrive parfois après l'initialisation : on recalcule la mise en page
+  function recalerMiseEnPage() {
+    var essais = 0, t = setInterval(function () {
+      storymap.updateDisplay();
+      var s = document.querySelectorAll(".vco-slide");
+      if (++essais > 40 || (s.length > 1 && s[1].style.left && s[1].style.left !== "0px" && essais > 4)) clearInterval(t);
+    }, 250);
+  }
+
+  function attendreCarte() {
+    var m = storymap && storymap._map && storymap._map._map;
+    if (!m || !window.L || !m._loaded) { setTimeout(attendreCarte, 150); return; }   // carte centrée et zoomée
+    carte = m;
+    coucheRappels = L.layerGroup().addTo(carte);
+    json("pays_bivarie.geojson").then(ajouterAplats).catch(function (e) { console.warn(e); });
+    creerRonds();
+    ajouterLegende();
+    carte.on("zoomend", placerRonds);
+    carte.on("moveend", recentrerMiniCarte);
+    setInterval(suivreSlide, 250);
+    if (window.genzDepart > 0) setTimeout(function () { allerA(window.genzDepart); }, 400);
+  }
+
+  // ---------- pictos : viewBox recadrée sur le dessin réel, pour un centrage exact -----------------
+  function normaliserPictos() {
+    var ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("style", "position:absolute;left:-9999px;top:0;width:100px;height:100px;visibility:hidden");
+    document.body.appendChild(svg);
+    Object.keys(D.pictos).forEach(function (k) {
+      var p = D.pictos[k], g = document.createElementNS(ns, "g");
+      g.innerHTML = p.corps; svg.appendChild(g);
+      try {
+        var b = g.getBBox();
+        if (b.width > 0 && b.height > 0) {
+          var c = Math.max(b.width, b.height) * 1.04;
+          p.viewBox = [b.x + b.width / 2 - c / 2, b.y + b.height / 2 - c / 2, c, c].map(function (v) { return v.toFixed(2); }).join(" ");
+        }
+      } catch (e) { /* on garde la viewBox d'origine */ }
+      svg.removeChild(g);
+    });
+    document.body.removeChild(svg);
+  }
+
+  // ---------- 1. aplats bivariés -------------------------------------------------------------
+  function ajouterAplats(geo) {
+    geo.features = geo.features.filter(function (f) { return f.geometry && f.geometry.coordinates; });
+    coucheAplats = L.geoJson(geo, {
+      style: function (f) {
+        var c = D.bivar[f.properties.bivar];
+        return { fillColor: c || "#ffffff", fillOpacity: c ? 0.62 : 0.15, color: "#4a4a4a", weight: 0.7, opacity: 0.55 };
+      },
+      onEachFeature: function (f, lyr) {
+        lyr.on("mouseover", function (e) { lyr.setStyle({ weight: 2, color: "#2b2d42", opacity: 0.95 }); montrerBulle(textePays(f.properties), e); });
+        lyr.on("mousemove", placerBulle);
+        lyr.on("mouseout", function () { coucheAplats.resetStyle(lyr); cacherBulle(); });
+      }
+    });
+    var cb = document.getElementById("cb-aplats");
+    if (!cb || cb.checked) coucheAplats.addTo(carte).bringToBack();
+  }
+  function basculerAplats(oui) {
+    var leg = document.querySelector(".legende");
+    if (leg) leg.classList.toggle("sans-aplats", !oui);
+    if (!coucheAplats) return;
+    if (oui) { carte.addLayer(coucheAplats); coucheAplats.bringToBack(); } else carte.removeLayer(coucheAplats);
+  }
+  function textePays(p) {
+    var fmt = function (v, u) { return v == null ? "n. d." : String(v).replace(".", ",") + u; };
+    return "<b>" + echap(p.NAME) + "</b><br>Âge médian : " + fmt(p.age_median, " ans") +
+           "<br>Chômage des 15–24 ans : " + fmt(p.chom_jeunes, " %") +
+           "<br><i style='color:#777'>median age · youth unemployment</i>";
+  }
+
+  // ---------- 2. ronds de la carte du Day 12, sans chevauchement ------------------------------
+  // pixels par millimètre de la carte imprimée, selon le zoom : petits ronds en vue monde
+  function pxParMm(z) { var k = Math.max(1.35, Math.min(3.6, 0.9 + 0.5 * z)); return MOBILE ? k * 0.85 : k; }
+
+  function svgRond(m, K) {
+    var d = m.d_mm * K, halo = (m.cas_limite ? m.d_mm + 1 : m.d_mm + (m.epoque === "2026" ? 4.6 : 3.0)) * K;
+    var T = Math.ceil(halo + 2), c = T / 2;
+    var s = '<svg xmlns="http://www.w3.org/2000/svg" width="' + T + '" height="' + T + '" viewBox="0 0 ' + T + " " + T + '">';
+    s += '<circle cx="' + c + '" cy="' + c + '" r="' + halo / 2 + '" fill="#ffffff" fill-opacity="0.92"/>';
+    if (m.anneau) {
+      var w = Math.max(0.8, m.anneau_mm * K), dash = "";
+      if (m.anneau === "dot") dash = ' stroke-dasharray="0.1 ' + (w * 2.2).toFixed(2) + '" stroke-linecap="round"';
+      if (m.anneau === "dash") dash = ' stroke-dasharray="' + (w * 5).toFixed(2) + " " + (w * 2.5).toFixed(2) + '"';
+      s += '<circle cx="' + c + '" cy="' + c + '" r="' + ((d + 1.9 * K) / 2).toFixed(2) + '" fill="none" stroke="' + D.encre + '" stroke-width="' + w + '"' + dash + "/>";
+      if (m.anneau === "double")
+        s += '<circle cx="' + c + '" cy="' + c + '" r="' + ((d + 3.5 * K) / 2).toFixed(2) + '" fill="none" stroke="' + D.encre + '" stroke-width="' + w + '"/>';
+    }
+    s += '<circle cx="' + c + '" cy="' + c + '" r="' + (d / 2).toFixed(2) + '" fill="' + m.remplissage + '" stroke="' +
+         (m.cas_limite ? "#6b6b6b" : "#ffffff") + '" stroke-width="' + Math.max(0.5, 0.15 * K) + '"/>';
+    var p = m.picto && D.pictos[m.picto];
+    if (p && d >= 9) {                       // picto centré, carré inscrit dans le rond (côté = 0,62 × diamètre)
+      var t = d * 0.62;
+      s += '<svg x="' + (c - t / 2).toFixed(2) + '" y="' + (c - t / 2).toFixed(2) + '" width="' + t.toFixed(2) + '" height="' + t.toFixed(2) +
+           '" viewBox="' + p.viewBox + '" preserveAspectRatio="xMidYMid meet" overflow="hidden" style="color:' + m.picto_couleur + '">' + p.corps + "</svg>";
+    }
+    return { html: s + "</svg>", taille: T, rayon: halo / 2 };
+  }
+
+  function creerRonds() {
+    // ordre d'affichage : les petits ronds au-dessus des gros, comme sur la carte
+    D.mouvements.slice().sort(function (a, b) { return b.d_mm - a.d_mm; }).forEach(function (m, i) {
+      var mk = L.marker([m.lat, m.lon], { icon: L.divIcon({ className: "genz-rond", iconSize: [1, 1] }),
+                                         zIndexOffset: 1000 + i * 10, riseOnHover: true, title: "" }).addTo(carte);
+      mk.on("click", function () { allerA(m.slide); });
+      mk.on("mouseover", function (e) { montrerBulle(texteMouvement(m), e); });
+      mk.on("mousemove", placerBulle);
+      mk.on("mouseout", cacherBulle);
+      var r = { marker: mk, m: m, z: 1000 + i * 10 };
+      ronds.push(r); rondsParSlide[m.slide] = r;
+    });
+    placerRonds();
+  }
+
+  // Anti-collision : on part du vrai lieu, on écarte les ronds qui se touchent (ressort vers le vrai lieu),
+  // puis une passe finale sans ressort garantit qu'aucun rond n'en chevauche un autre. Recalculé à chaque zoom.
+  function placerRonds() {
+    var K = pxParMm(carte.getZoom()), marge = 1.5;
+    var N = ronds.map(function (r, i) {
+      var p = carte.latLngToLayerPoint([r.m.lat, r.m.lon]), s = svgRond(r.m, K);
+      return { r: r, x0: p.x, y0: p.y, x: p.x, y: p.y, rayon: s.rayon + marge, s: s, i: i };
+    });
+    function separer() {
+      var touche = false;
+      for (var a = 0; a < N.length; a++) for (var b = a + 1; b < N.length; b++) {
+        var A = N[a], B = N[b], dx = B.x - A.x, dy = B.y - A.y, dist = Math.sqrt(dx * dx + dy * dy), besoin = A.rayon + B.rayon;
+        if (dist < besoin) {
+          touche = true;
+          if (dist < 0.01) { var ang = (a * 2.399 + b * 0.7); dx = Math.cos(ang); dy = Math.sin(ang); dist = 1; }
+          var pousse = (besoin - dist) / 2 + 0.05, ux = dx / dist, uy = dy / dist;
+          A.x -= ux * pousse; A.y -= uy * pousse; B.x += ux * pousse; B.y += uy * pousse;
+        }
+      }
+      return touche;
+    }
+    for (var it = 0; it < 250; it++) {
+      separer();
+      N.forEach(function (n) { n.x += (n.x0 - n.x) * 0.06; n.y += (n.y0 - n.y) * 0.06; });
+    }
+    for (it = 0; it < 3000 && separer(); it++) { /* passe finale : plus aucun chevauchement */ }
+
+    coucheRappels.clearLayers();
+    N.forEach(function (n) {
+      var ll = carte.layerPointToLatLng(L.point(n.x, n.y));
+      n.r.marker.setLatLng(ll);
+      n.r.rayonPx = n.s.rayon;
+      n.r.marker.setIcon(L.divIcon({ className: "genz-rond", html: n.s.html, iconSize: [n.s.taille, n.s.taille],
+                                     iconAnchor: [n.s.taille / 2, n.s.taille / 2] }));
+      var ecart = Math.sqrt((n.x - n.x0) * (n.x - n.x0) + (n.y - n.y0) * (n.y - n.y0));
+      if (ecart > n.rayon * 0.6) {           // petit trait de rappel vers la vraie position
+        var vrai = L.latLng(n.r.m.lat, n.r.m.lon);
+        coucheRappels.addLayer(L.polyline([vrai, ll], { color: "#2b2d42", weight: 1, opacity: 0.7, clickable: false }));
+        coucheRappels.addLayer(L.circleMarker(vrai, { radius: 2, stroke: false, fillColor: "#2b2d42", fillOpacity: 0.9, clickable: false }));
+      }
+    });
+    appliquerEtats();
+    if (slideCourante >= 0) montrerFamille(familleCourante());
+  }
+  function texteMouvement(m) {
+    return "<b>" + echap(m.nom) + "</b><br>" + echap(m.pays) + " · " + echap(m.annee) + "<br>" +
+           (m.cas_limite ? "cas limite · " : "") + echap(m.issue) + " · " + m.duree + " j" +
+           "<br><i style='color:#777'>cliquer pour ouvrir · click to open</i>";
+  }
+  function classeRond(r, nom, oui) {
+    var el = r && r.marker._icon;
+    if (el) { if (oui) L.DomUtil.addClass(el, nom); else L.DomUtil.removeClass(el, nom); }
+  }
+
+  // ---------- 3. lignes des symboles qui voyagent --------------------------------------------
+  function arc(a, b) {   // courbe douce entre deux points (Bézier quadratique en lat/lon)
+    var mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = b[1] - a[1], dy = b[0] - a[0];
+    var c = [mx + dx * 0.18, my - dy * 0.18], pts = [];
+    for (var t = 0; t <= 1.0001; t += 0.05)
+      pts.push([(1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * c[0] + t * t * b[0],
+                (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * c[1] + t * t * b[1]]);
+    return pts;
+  }
+  function familleCourante() {
+    var fam = null;
+    D.familles.forEach(function (f) { if (f.slide === slideCourante) fam = f; });
+    return fam;
+  }
+  function rondAt(ll) {
+    for (var i = 0; i < ronds.length; i++) if (ronds[i].m.lat === ll[0] && ronds[i].m.lon === ll[1]) return ronds[i];
+    return null;
+  }
+  // ligne courbe origine → destination entre les ronds (positions décalées), coupée au bord des ronds,
+  // avec une tête de flèche de la couleur du symbole. Recalculée à chaque zoom (dimensions en pixels).
+  function montrerFamille(f) {
+    if (coucheLignes) { carte.removeLayer(coucheLignes); coucheLignes = null; }
+    if (!f) return;
+    var couches = [];
+    f.segments.forEach(function (s) {
+      var A = rondAt(s[0]), B = rondAt(s[1]);
+      var pa = carte.latLngToLayerPoint(A ? A.marker.getLatLng() : s[0]), pb = carte.latLngToLayerPoint(B ? B.marker.getLatLng() : s[1]);
+      var dx = pb.x - pa.x, dy = pb.y - pa.y, lg = Math.sqrt(dx * dx + dy * dy);
+      if (lg < 4) return;
+      var cx = (pa.x + pb.x) / 2 - dy * 0.18, cy = (pa.y + pb.y) / 2 + dx * 0.18;
+      var rA = (A && A.rayonPx || 6) + 1, rB = (B && B.rayonPx || 6) + 2, pts = [];
+      for (var t = 0; t <= 1.0001; t += 0.02) {
+        var x = (1 - t) * (1 - t) * pa.x + 2 * (1 - t) * t * cx + t * t * pb.x, y = (1 - t) * (1 - t) * pa.y + 2 * (1 - t) * t * cy + t * t * pb.y;
+        if (Math.hypot(x - pa.x, y - pa.y) >= rA && Math.hypot(x - pb.x, y - pb.y) >= rB) pts.push(L.point(x, y));
+      }
+      if (pts.length < 2) return;
+      var bout = pts[pts.length - 1], prec = pts[Math.max(0, pts.length - 4)];
+      var ux = bout.x - prec.x, uy = bout.y - prec.y, n = Math.sqrt(ux * ux + uy * uy) || 1; ux /= n; uy /= n;
+      var long = 12, demi = 6.5, base = L.point(bout.x - ux * long, bout.y - uy * long);
+      var ligne = pts.slice(0, -1); ligne.push(base);
+      couches.push(L.polyline(ligne.map(function (p) { return carte.layerPointToLatLng(p); }),
+                              { color: f.couleur, weight: 3.5, opacity: 0.92, lineCap: "round", clickable: false }));
+      couches.push(L.polygon([bout, L.point(base.x - uy * demi, base.y + ux * demi), L.point(base.x + uy * demi, base.y - ux * demi)]
+                               .map(function (p) { return carte.layerPointToLatLng(p); }),
+                             { color: f.couleur, weight: 1, opacity: 1, fillColor: f.couleur, fillOpacity: 1, clickable: false }));
+    });
+    coucheLignes = L.layerGroup(couches).addTo(carte);
+  }
+  // classes CSS (actif, famille, estompé) : réappliquées après chaque recalcul des icônes
+  function appliquerEtats() {
+    var f = familleCourante();
+    ronds.forEach(function (r) {
+      var actif = r.m.slide === slideCourante, dedans = f && f.slides_mouvements.indexOf(r.m.slide) >= 0;
+      classeRond(r, "actif", actif);
+      classeRond(r, "famille", !!dedans);
+      classeRond(r, "estompe", !!f && !dedans);
+      r.marker.setZIndexOffset(actif ? 5000 : r.z);
+    });
+  }
+
+  // ---------- suivi de la diapositive courante -----------------------------------------------
+  function suivreSlide() {
+    var n = storymap.current_slide;
+    if (n === slideCourante) return;
+    slideCourante = n;
+    montrerFamille(familleCourante());
+    appliquerEtats();
+    var sel = document.getElementById("chapitres"), v = "";
+    D.chapitres.forEach(function (c) { if (c.slide <= n) v = String(c.slide); });
+    sel.value = v;
+    [400, 1500, 3000].forEach(function (t) { setTimeout(recentrerMiniCarte, t); });
+  }
+  function allerA(n) {   // si la carte n'est pas encore prête, on attend un peu
+    if (!carte) { setTimeout(function () { allerA(n); }, 200); return; }
+    storymap.goTo(+n); setTimeout(suivreSlide, 50);
+  }
+
+  // ---------- 7. minicarte : toujours centrée sur la vue principale (point rouge visible partout) ----
+  function recentrerMiniCarte() {
+    var mc = storymap._map && storymap._map._mini_map, mm = mc && mc._miniMap;
+    if (!mm || !carte) return;
+    try {
+      var c = carte.getCenter(), z = Math.max(0, Math.min(carte.getZoom() - 5, 3));
+      mm.setView(c, z, { reset: true });
+      if (mc._locationCircle) { mc._locationCircle.setLatLng(c); mc._locationCircle.redraw(); }
+      if (mc._aimingRect) mc._aimingRect.setBounds(carte.getBounds());
+      if (mc._shadowRect) mc._shadowRect.setBounds(carte.getBounds());
+    } catch (e) { /* minicarte masquée */ }
+  }
+
+  // ---------- bulle --------------------------------------------------------------------------
+  function montrerBulle(html, e) { bulle.innerHTML = html; bulle.style.display = "block"; placerBulle(e); }
+  function placerBulle(e) {
+    var x = e.originalEvent.clientX + 14, y = e.originalEvent.clientY + 14;
+    var w = bulle.offsetWidth, h = bulle.offsetHeight;
+    if (x + w > window.innerWidth - 8) x = e.originalEvent.clientX - w - 14;
+    if (y + h > window.innerHeight - 8) y = e.originalEvent.clientY - h - 14;
+    bulle.style.left = x + "px"; bulle.style.top = y + "px";
+  }
+  function cacherBulle() { bulle.style.display = "none"; }
+
+  // ---------- légende ------------------------------------------------------------------------
+  function anneauSvg(style) {   // petit rond d'exemple avec l'anneau d'époque de la carte
+    var dash = style === "dot" ? ' stroke-dasharray="0.1 2.6" stroke-linecap="round"' : style === "dash" ? ' stroke-dasharray="4 2.2"' : "";
+    var s = '<svg class="anneau" width="18" height="18" viewBox="0 0 22 22"><circle cx="11" cy="11" r="5" fill="#bdb9ad"/>' +
+            '<circle cx="11" cy="11" r="7.3" fill="none" stroke="' + D.encre + '" stroke-width="' + (style === "solid" ? 1.6 : 1.3) + '"' + dash + "/>";
+    if (style === "double") s += '<circle cx="11" cy="11" r="9.6" fill="none" stroke="' + D.encre + '" stroke-width="1.1"/>';
+    return s + "</svg>";
+  }
+  function ajouterLegende() {
+    var ctl = L.control({ position: "bottomleft" });
+    ctl.onAdd = function () {
+      var div = L.DomUtil.create("div", "legende");
+      var g = '<div class="biv-bloc"><div class="biv" role="img" aria-label="Légende bivariée : âge médian et chômage des 15–24 ans">' +
+              '<span class="fl-y" aria-hidden="true">↑</span>';
+      for (var y = 3; y >= 1; y--) for (var x = 1; x <= 3; x++)
+        g += '<span class="case" style="background:' + D.bivar[x + "-" + y] + ';grid-column:' + (x + 1) + ';grid-row:' + (4 - y) + '"></span>';
+      g += '<span class="fl-x" aria-hidden="true">→</span></div>' +
+           '<div class="axes"><b>↑</b> plus jeune · <i>younger</i><br>' +
+           '<b>→</b> chômage 15–24 ans<br><i>youth unemployment</i></div></div>';
+      var iss = '<div class="col"><h5>Issue · <i>outcome</i></h5>';
+      Object.keys(D.issues).forEach(function (k) {
+        iss += '<div><span class="pastille" style="background:' + D.coul_issue[k] + '"></span>' + echap(D.issues[k][0]) + "</div>";
+      });
+      iss += '<div><span class="pastille" style="background:' + D.coul_issue.cas_limite + '"></span>cas limite</div></div>';
+      var styles = { precurseurs: "dot", vague1: "dash", vague2: "solid", "2026": "double" };
+      var ep = '<div class="col"><h5>Anneau = époque · <i>period</i></h5>';
+      var court = { precurseurs: "précurseurs", vague1: "1re vague", vague2: "vague Gen Z", "2026": "vague européenne" };
+      D.epoques.forEach(function (e) { ep += "<div>" + anneauSvg(styles[e.code]) + echap(e.annees) + " " + echap(court[e.code] || e.fr) + "</div>"; });
+      ep += "</div>";
+      var fam = '<div class="col"><h5>Symbole qui voyage</h5>';
+      D.familles.forEach(function (f) { fam += '<div><span class="trait" style="color:' + f.couleur + '"></span>' + echap(f.fr) + "</div>"; });
+      fam += "</div>";
+      div.innerHTML = '<div class="tete"><span class="titre-leg">Légende · <i>Key</i></span>' +
+        '<label><input id="cb-aplats" type="checkbox" checked> Aplats âge × chômage</label>' +
+        '<span class="note">taille = durée · trait fin = vrai lieu</span>' +
+        '<button class="masquer" type="button" aria-expanded="true" title="Replier / déplier la légende">–</button></div>' +
+        "<div class='contenu'>" + g + iss + ep + fam + "</div>";
+      L.DomEvent.disableClickPropagation(div);
+      if (L.DomEvent.disableScrollPropagation) L.DomEvent.disableScrollPropagation(div);
+      var b = div.querySelector(".masquer");
+      function ajuster() {   // largeur = partie visible de la carte (à gauche du panneau) ; jamais plus haute que la carte
+        var panneau = document.querySelector(".vco-storyslider .vco-slide .vco-slide-content-container");
+        var visible = carte.getSize().x;
+        if (panneau && !MOBILE) { var r = panneau.getBoundingClientRect(), c = carte.getContainer().getBoundingClientRect();
+          if (r.left > c.left + 200 && r.left < c.right) visible = r.left - c.left; }
+        div.style.maxWidth = Math.max(260, visible - 30) + "px";
+        div.querySelector(".contenu").style.maxHeight = Math.max(80, carte.getSize().y - 110) + "px";
+      }
+      b.addEventListener("click", function () {
+        var f = div.classList.toggle("ferme"); b.textContent = f ? "+" : "–"; b.setAttribute("aria-expanded", String(!f)); ajuster();
+      });
+      div.querySelector("#cb-aplats").addEventListener("change", function (e) { basculerAplats(e.target.checked); });
+      setTimeout(ajuster, 600); setTimeout(ajuster, 2500); window.addEventListener("resize", ajuster);
+      var tc = carte.getSize();   // légende repliée d'office sur téléphone ou carte très petite
+      if (MOBILE || tc.y < 420) { div.classList.add("ferme"); b.textContent = "+"; b.setAttribute("aria-expanded", "false"); }
+      return div;
+    };
+    ctl.addTo(carte);
+  }
+
+  // ---------- visionneuse d'images plein écran ------------------------------------------------
+  function preparerVisionneuse() {
+    var v = document.getElementById("visionneuse"), img = v.querySelector("img"), leg = v.querySelector(".legende-img");
+    var z = 1, tx = 0, ty = 0, pointeurs = {};
+    function appliquer() { img.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + z + ")"; }
+    function ajusterEcran() {
+      var w = img.naturalWidth || 1, h = img.naturalHeight || 1;
+      z = Math.min(window.innerWidth * 0.94 / w, window.innerHeight * 0.86 / h);
+      tx = (window.innerWidth - w * z) / 2; ty = (window.innerHeight - h * z) / 2; appliquer();
+    }
+    function zoomer(f, cx, cy) {
+      var nz = Math.max(0.05, Math.min(20, z * f));
+      tx = cx - (cx - tx) * nz / z; ty = cy - (cy - ty) * nz / z; z = nz; appliquer();
+    }
+    function ouvrir(src, texte) {
+      img.onload = ajusterEcran; img.src = src; leg.textContent = texte || ""; v.classList.add("ouvert");
+      if (img.complete && img.naturalWidth) ajusterEcran();
+    }
+    function fermer() { v.classList.remove("ouvert"); img.removeAttribute("src"); }
+    window.genzVisionneuse = ouvrir;
+    document.addEventListener("click", function (e) {
+      var im = e.target.closest && e.target.closest(".vco-slide .vco-media img");
+      if (!im || v.contains(im)) return;
+      e.preventDefault(); e.stopPropagation();
+      var slide = im.closest(".vco-slide"), cap = slide && slide.querySelector(".vco-caption");
+      ouvrir((im.currentSrc || im.src).replace(/width=\d+/, "width=2560"), cap ? cap.textContent : "");
+    }, true);
+    v.addEventListener("click", function (e) {
+      var b = e.target.closest("button");
+      if (b) { if (b.hasAttribute("data-fermer")) fermer(); else if (+b.dataset.z === 0) ajusterEcran();
+               else zoomer(+b.dataset.z, window.innerWidth / 2, window.innerHeight / 2); }
+      else if (e.target === v) fermer();
+    });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && v.classList.contains("ouvert")) fermer(); });
+    v.addEventListener("wheel", function (e) { e.preventDefault(); zoomer(e.deltaY < 0 ? 1.18 : 1 / 1.18, e.clientX, e.clientY); }, { passive: false });
+    img.addEventListener("dblclick", function (e) { zoomer(2, e.clientX, e.clientY); });
+    img.addEventListener("pointerdown", function (e) {
+      img.setPointerCapture(e.pointerId); pointeurs[e.pointerId] = [e.clientX, e.clientY]; img.classList.add("saisi");
+    });
+    img.addEventListener("pointermove", function (e) {
+      if (!pointeurs[e.pointerId]) return;
+      var ids = Object.keys(pointeurs), avant = pointeurs[e.pointerId];
+      if (ids.length === 1) { tx += e.clientX - avant[0]; ty += e.clientY - avant[1]; appliquer(); }
+      else if (ids.length === 2) {   // pincement à deux doigts
+        var autre = pointeurs[ids[0] == e.pointerId ? ids[1] : ids[0]];
+        var d1 = Math.hypot(avant[0] - autre[0], avant[1] - autre[1]), d2 = Math.hypot(e.clientX - autre[0], e.clientY - autre[1]);
+        if (d1 > 0) zoomer(d2 / d1, (e.clientX + autre[0]) / 2, (e.clientY + autre[1]) / 2);
+      }
+      pointeurs[e.pointerId] = [e.clientX, e.clientY];
+    });
+    ["pointerup", "pointercancel"].forEach(function (t) {
+      img.addEventListener(t, function (e) { delete pointeurs[e.pointerId]; if (!Object.keys(pointeurs).length) img.classList.remove("saisi"); });
+    });
+    window.addEventListener("resize", function () { if (v.classList.contains("ouvert")) ajusterEcran(); });
+  }
+
+  // ---------- barre de navigation ------------------------------------------------------------
+  function preparerNavigation() {
+    document.getElementById("btn-ensemble").addEventListener("click", function () { allerA(0); });
+    var sel = document.getElementById("chapitres");
+    D.chapitres.forEach(function (c) {
+      var o = document.createElement("option"); o.value = c.slide; o.textContent = c.label; sel.appendChild(o);
+    });
+    sel.addEventListener("change", function () { if (sel.value !== "") allerA(sel.value); });
+
+    var inp = document.getElementById("cherche"), ul = document.getElementById("liste"), choix = -1, items = [];
+    var tous = D.mouvements.slice().sort(function (a, b) { return a.slide - b.slide; });
+    function afficher() {
+      var q = sansAccent(inp.value.trim());
+      items = tous.filter(function (m) {
+        return !q || sansAccent([m.nom, m.nom_en, m.pays, m.ville, m.annee, m.issue].join(" ")).indexOf(q) >= 0;
+      });
+      choix = items.length ? 0 : -1;
+      ul.innerHTML = items.length ? items.map(function (m, i) {
+        return '<li role="option" data-i="' + i + '"' + (i === choix ? ' class="sel"' : "") + '><span class="pastille" style="background:' +
+          m.remplissage + '"></span>' + echap(m.nom) + "<small>" + echap(m.pays) + " · " + m.annee + (m.cas_limite ? " · cas limite" : "") + "</small></li>";
+      }).join("") : '<li class="vide">Aucun mouvement trouvé</li>';
+      ul.classList.add("ouvert"); inp.setAttribute("aria-expanded", "true");
+    }
+    function fermer() { ul.classList.remove("ouvert"); inp.setAttribute("aria-expanded", "false"); }
+    function valider(i) { if (items[i]) { allerA(items[i].slide); inp.value = items[i].nom; fermer(); inp.blur(); } }
+    function surligner() {
+      [].forEach.call(ul.children, function (li, i) { li.classList.toggle("sel", i === choix); });
+      if (ul.children[choix]) ul.children[choix].scrollIntoView({ block: "nearest" });
+    }
+    inp.addEventListener("focus", function () { inp.select(); afficher(); });
+    inp.addEventListener("input", afficher);
+    inp.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown") { choix = Math.min(items.length - 1, choix + 1); surligner(); e.preventDefault(); }
+      else if (e.key === "ArrowUp") { choix = Math.max(0, choix - 1); surligner(); e.preventDefault(); }
+      else if (e.key === "Enter") { valider(choix); e.preventDefault(); }
+      else if (e.key === "Escape") { fermer(); inp.blur(); }
+    });
+    ul.addEventListener("mousedown", function (e) {
+      var li = e.target.closest("li[data-i]"); if (li) { e.preventDefault(); valider(+li.dataset.i); }
+    });
+    inp.addEventListener("blur", function () { setTimeout(fermer, 120); });
+  }
+})();
 </script>
 </body>
 </html>

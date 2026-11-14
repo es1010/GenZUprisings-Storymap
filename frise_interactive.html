@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frise Gen Z 2014–2026</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6.16/dist/plot.umd.min.js"></script>
+<style>
+  :root { --encre: #2b2d42; --papier: #efeeea; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--papier); color: var(--encre); font-family: "Segoe UI", system-ui, sans-serif; }
+  body.compact .sous { display: none; }
+  main { padding: 10px 14px 6px; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0; line-height: 1.3; }
+  h1 i, .sous i { font-weight: 400; color: #666; }
+  .sous { font-size: 12.5px; margin: 2px 0 6px; }
+  .legende { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin-top: 4px; }
+  .legende span { display: inline-flex; align-items: center; gap: 5px; }
+  .legende b { display: inline-block; width: 11px; height: 11px; border-radius: 50%; }
+  .pied { font-size: 10.5px; color: #777; text-align: right; margin-top: 2px; }
+  .pied a { color: #555; }
+  #frise svg { overflow: visible; }
+  .rond circle { cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Révoltes de la génération Z, 2014–2026 · <i>Gen Z uprisings, 2014–2026</i></h1>
+  <div class="sous">un rond par mouvement, à sa date de début ; taille = durée · <i>one dot per movement, at its start date; size = duration</i></div>
+  <div id="frise"></div>
+  <div class="legende" id="legende"></div>
+  <div class="pied">Survoler pour le détail, cliquer pour ouvrir la diapositive · <a href="frise_genz_2014_2026.png" target="_blank">version image</a></div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var EPOQUES = [["precurseurs", "2014-01-01", "2019-01-01", "#e3e1da"], ["vague1", "2019-01-01", "2023-07-01", "#d8dde3"],
+                 ["vague2", "2023-07-01", "2026-01-01", "#e3e1da"], ["2026", "2026-01-01", "2026-12-31", "#d8dde3"]];
+  var D;
+  fetch("genz_v2_donnees.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (d) {
+    D = d; legende(); dessiner();
+    // la frise s'adapte à la taille de son cadre (iframe du panneau ou plein écran), sans défilement
+    var t, relancer = function () { clearTimeout(t); t = setTimeout(dessiner, 120); };
+    if (window.ResizeObserver) new ResizeObserver(relancer).observe(document.body); else window.addEventListener("resize", relancer);
+  });
+
+  function ouvrir(m) {   // dans la StoryMap : la page parente ouvre la diapositive ; sinon, lien direct
+    if (window.parent !== window) window.parent.postMessage({ genz: "aller", slide: m.slide }, "*");
+    else window.location.href = "storymap_genz.html?diapo=" + m.slide;
+  }
+
+  function legende() {
+    var h = Object.keys(D.issues).map(function (k) {
+      return '<span><b style="background:' + D.coul_issue[k] + '"></b>' + D.issues[k][0] + " · <i>" + D.issues[k][1] + "</i></span>";
+    }).join("");
+    h += '<span><b style="background:#fff;box-shadow:inset 0 0 0 2px #bdbdbd"></b>cas limite (sous l\'axe) · <i>borderline</i></span>';
+    document.getElementById("legende").innerHTML = h;
+  }
+
+  function dessiner() {
+    document.body.classList.toggle("compact", window.innerHeight < 400);
+    var W = Math.max(280, document.getElementById("frise").clientWidth), petit = W < 560;
+    var occupe = document.querySelector("main").offsetHeight - document.getElementById("frise").offsetHeight;
+    var dispo = Math.max(200, window.innerHeight - occupe - 6);
+    var f = Math.max(0.55, Math.min(1.25, Math.min(dispo / 430, W / 760)));   // taille des ronds selon la place
+    var parse = d3.utcParse("%Y-%m-%d");
+    var tous = D.mouvements.map(function (m) {
+      return Object.assign({}, m, { date: parse(m.debut), r: Math.max(2.2, m.d_mm * f) });
+    });
+    var main = tous.filter(function (m) { return !m.cas_limite; }), lim = tous.filter(function (m) { return m.cas_limite; });
+    var bandes = EPOQUES.map(function (e) {
+      var ep = D.epoques.filter(function (x) { return x.code === e[0]; })[0];
+      return { x1: parse(e[1]), x2: parse(e[2]), fond: e[3], fr: ep.fr, en: ep.en, annees: ep.annees };
+    });
+    var titre = function (m) {
+      return m.nom + " · " + m.pays + "\n" + m.periode + "\n" + (m.cas_limite ? "cas limite · " : "") + m.issue +
+             (m.slogan ? "\n« " + m.slogan + " »" : "");
+    };
+    var X = { type: "utc", domain: [parse("2014-01-01"), parse("2026-12-31")], label: null, tickFormat: "%Y",
+              ticks: d3.utcYear.every(petit ? 2 : 1) };
+    var H2 = Math.max(56, Math.round(dispo * 0.24)), H1 = dispo - H2;
+    var span = parse("2026-12-31") - parse("2014-01-01"), largeur = function (b) { return (W - 12) * (b.x2 - b.x1) / span; };
+    // libellés d'époque : nom complet seulement s'il tient dans la bande (pas de chevauchement)
+    var nomBande = function (b) { return largeur(b) > b.fr.length * 6.8 ? b.fr + "\n" + b.annees : b.annees; };
+    var enBande = function (b) { return largeur(b) > b.en.length * 5.8 ? b.en : ""; };
+
+    var haut = Plot.plot({
+      width: W, height: H1, marginLeft: 6, marginRight: 6, marginTop: 44, marginBottom: 26,
+      style: { background: "transparent", fontFamily: "Segoe UI, system-ui, sans-serif", fontSize: "12px", color: "#2b2d42" },
+      x: X, y: { axis: null }, r: { type: "identity" },
+      marks: [
+        Plot.rectX(bandes, { x1: "x1", x2: "x2", fill: "fond" }),
+        Plot.text(bandes, { x: function (b) { return new Date((+b.x1 + +b.x2) / 2); }, frameAnchor: "top", dy: -38,
+                            text: nomBande, fontWeight: 700, fontSize: petit ? 10.5 : 12, lineHeight: 1.1 }),
+        Plot.text(bandes, { x: function (b) { return new Date((+b.x1 + +b.x2) / 2); }, frameAnchor: "top", dy: -6,
+                            text: enBande, fontStyle: "italic", fill: "#666", fontSize: 10.5 }),
+        Plot.frame({ anchor: "bottom", stroke: "#2b2d42" }),
+        Plot.dot(main, Plot.dodgeY("bottom", { x: "date", r: "r", fill: "remplissage", stroke: "#fff", strokeWidth: 1.2,
+                                               padding: 1.5, className: "rond", title: titre, tip: true }))
+      ]
+    });
+    var bas = Plot.plot({
+      width: W, height: H2, marginLeft: 6, marginRight: 6, marginTop: 4, marginBottom: 4,
+      style: { background: "transparent", fontFamily: "Segoe UI, system-ui, sans-serif", fontSize: "12px" },
+      x: Object.assign({}, X, { axis: null }), y: { axis: null }, r: { type: "identity" },
+      marks: [
+        Plot.rectX(bandes, { x1: "x1", x2: "x2", fill: "fond" }),
+        Plot.dot(lim, Plot.dodgeY("top", { x: "date", r: function () { return Math.max(3, 4.6 * f); }, fill: "#fff", stroke: "#bdbdbd",
+                                          strokeWidth: 2, padding: 2, className: "rond", title: titre, tip: true }))
+      ]
+    });
+    var el = document.getElementById("frise");
+    el.replaceChildren(haut, bas);
+    [[haut, main], [bas, lim]].forEach(function (p) {
+      d3.select(p[0]).selectAll(".rond circle").on("click", function (e, i) { ouvrir(p[1][i]); });
+    });
+  }
+})();
+</script>
+</body>
+</html>

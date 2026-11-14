@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Réussite par époque · Gen Z</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6.16/dist/plot.umd.min.js"></script>
+<style>
+  :root { --encre: #2b2d42; --papier: #efeeea; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--papier); color: var(--encre); font-family: "Segoe UI", system-ui, sans-serif; }
+  body.compact .sous { display: none; }
+  main { padding: 10px 14px 6px; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0 0 2px; line-height: 1.3; }
+  h1 i, .sous i { font-weight: 400; color: #666; }
+  .sous { font-size: 12.5px; margin: 0 0 8px; }
+  .legende { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin-top: 6px; }
+  .legende span { display: inline-flex; align-items: center; gap: 5px; }
+  .legende b { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
+  .pied { font-size: 10.5px; color: #777; text-align: right; margin-top: 4px; }
+  .pied a { color: #555; }
+  .case rect { cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Victoire ou concessions, par époque · <i>won or conceded, by period</i></h1>
+  <div class="sous" id="sous"></div>
+  <div id="waffle"></div>
+  <div class="legende" id="legende"></div>
+  <div class="pied">1 case = 1 mouvement · survoler pour le nom, cliquer pour ouvrir la diapositive · <a href="taux_reussite_epoques.png" target="_blank">version image</a></div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var ORDRE = ["victoire", "concession", "repression", "en_cours"], D;
+  fetch("genz_v2_donnees.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (d) {
+    D = d; legende(); dessiner();
+    // le waffle s'adapte à la taille de son cadre (iframe du panneau ou plein écran), sans défilement
+    var t, relancer = function () { clearTimeout(t); t = setTimeout(dessiner, 120); };
+    if (window.ResizeObserver) new ResizeObserver(relancer).observe(document.body); else window.addEventListener("resize", relancer);
+  });
+
+  function ouvrir(m) {
+    if (window.parent !== window) window.parent.postMessage({ genz: "aller", slide: m.slide }, "*");
+    else window.location.href = "storymap_genz.html?diapo=" + m.slide;
+  }
+  function legende() {
+    document.getElementById("legende").innerHTML = ORDRE.map(function (k) {
+      return '<span><b style="background:' + D.coul_issue[k] + '"></b>' + D.issues[k][0] + " · <i>" + D.issues[k][1] + "</i></span>";
+    }).join("");
+  }
+
+  function dessiner() {
+    document.body.classList.toggle("compact", window.innerHeight < 300);
+    var W = Math.max(280, document.getElementById("waffle").clientWidth), petit = W < 560;
+    var occupe = document.querySelector("main").offsetHeight - document.getElementById("waffle").offsetHeight;
+    var dispo = Math.max(150, window.innerHeight - occupe - 6);
+    var mv = D.mouvements.filter(function (m) { return !m.cas_limite; });
+    var cases = [], lignes = [];
+    D.epoques.forEach(function (e) {
+      var rs = mv.filter(function (m) { return m.epoque === e.code; })
+                 .sort(function (a, b) { return ORDRE.indexOf(a.resultat) - ORDRE.indexOf(b.resultat) || a.debut.localeCompare(b.debut); });
+      var ok = rs.filter(function (m) { return m.resultat === "victoire" || m.resultat === "concession"; }).length;
+      var lib = e.fr + " · " + e.annees;
+      rs.forEach(function (m, i) { cases.push(Object.assign({}, m, { ligne: lib, col: i })); });
+      lignes.push({ ligne: lib, en: e.en, pct: Math.round(100 * ok / rs.length) + " %", detail: ok + "/" + rs.length, n: rs.length });
+    });
+    var okT = mv.filter(function (m) { return m.resultat === "victoire" || m.resultat === "concession"; }).length;
+    document.getElementById("sous").innerHTML = "Total : <b>" + okT + "/" + mv.length + " (" + Math.round(100 * okT / mv.length) +
+      " %)</b> victoire ou concessions · <i>won or conceded</i> — cas limites exclus · <i>borderline cases excluded</i>";
+
+    var maxCol = d3.max(lignes, function (l) { return l.n; });
+    var gauche = petit ? 118 : 190, droite = petit ? 58 : 80;
+    // côté des cases : limité par la largeur ET par la hauteur disponible (4 lignes)
+    var cote = Math.max(10, Math.min(34, Math.floor((W - gauche - droite) / maxCol), Math.floor((dispo - 10) / lignes.length - 18)));
+    var p = Plot.plot({
+      width: gauche + droite + cote * maxCol, height: lignes.length * (cote + 18) + 10,
+      marginLeft: gauche, marginRight: droite, marginTop: 4, marginBottom: 4,
+      style: { background: "transparent", fontFamily: "Segoe UI, system-ui, sans-serif", fontSize: petit ? "11px" : "12.5px", color: "#2b2d42" },
+      x: { axis: null, domain: d3.range(maxCol), padding: 0.12 },
+      y: { domain: lignes.map(function (l) { return l.ligne; }), axis: null, padding: 0.32 },
+      marks: [
+        Plot.cell(cases, { x: "col", y: "ligne", fill: "remplissage", rx: 3, className: "case",
+                           title: function (m) { return m.nom + " · " + m.pays + "\n" + m.periode + "\n" + m.issue; }, tip: true }),
+        Plot.text(lignes, { y: "ligne", frameAnchor: "left", dx: -10, textAnchor: "end", lineHeight: 1.15,
+                            text: function (l) { return l.ligne.replace(" · ", "\n"); }, fontWeight: 600 }),
+        Plot.text(lignes, { y: "ligne", frameAnchor: "right", dx: 10, textAnchor: "start", text: "pct", fontWeight: 700,
+                            fontSize: petit ? 15 : 19 }),
+        Plot.text(lignes, { y: "ligne", frameAnchor: "right", dx: 10, dy: petit ? 14 : 17, textAnchor: "start", text: "detail",
+                            fill: "#666", fontSize: 10 })
+      ]
+    });
+    document.getElementById("waffle").replaceChildren(p);
+    d3.select(p).selectAll(".case rect").on("click", function (e, i) { ouvrir(cases[i]); });
+  }
+})();
+</script>
+</body>
+</html>
